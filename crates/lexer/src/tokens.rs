@@ -1,16 +1,22 @@
-use std::str::FromStr;
-
-pub enum Token {
+#[derive(Debug, PartialEq)]
+pub enum Token<'a> {
     Illegal,
-    // Eof,
 
     // identifies + literals
-    Ident(String),
-    Int(i64),
+    Ident(&'a str),
+    Number(&'a str),
 
     // operators
     Assign,
     Plus,
+    Minus,
+    Bang,
+    Asterisk,
+    Slash,
+    Lt,
+    Gt,
+    LtEq,
+    GtEq,
 
     // delimiters
     Comma,
@@ -24,4 +30,12 @@ pub enum Token {
     // keywords
     Function,
     Let,
+    True,
+    False,
+    If,
+    Else,
+    Return,
+
+    Eq,
+    NotEq,
 }
