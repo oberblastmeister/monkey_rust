@@ -35,7 +35,7 @@ pub struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn begin_lexing(input: &'a str, sender: Sender<Token<'a>>) {
+    pub fn begin_lexing(input: &'a str, sender: Sender<Token<'a>>) {
         let mut lexer = Lexer {
             input,
             start: 0,
@@ -125,7 +125,7 @@ impl<'a> Lexer<'a> {
                 ',' => Comma,
                 '+' => Plus,
                 '*' => Asterisk,
-                '/' => Slash,
+                '/' => change_state!(slash_or_comment),
                 '-' => Minus,
                 '{' => Lbrace,
                 '}' => Rbrace,
@@ -133,16 +133,37 @@ impl<'a> Lexer<'a> {
                 '<' => change_state!(lex_lt),
                 '!' => change_state!(lex_bang_or_not_eq),
                 _ if is_start_of_number(c) => change_state!(lex_number),
-                _ if is_letter(c) => change_state!(lex_ident),
-                _ if is_white_space(c) => {
-                    l.ignore();
-                    continue;
-                }
+                _ if is_letter(c) => change_state!(keyword),
+                _ if is_whitespace(c) => change_state!(whitespace),
                 _ => Illegal,
             };
             l.emit(token);
         }
         None
+    }
+
+    fn whitespace(l: &mut Lexer) -> Option<StateFunction> {
+        l.ignore();
+        change_state!(lex_main);
+    }
+
+    fn slash_or_comment(l: &mut Lexer) -> Option<StateFunction> {
+        if l.accept("/") {
+            change_state!(comment);
+        } else {
+            l.emit(Token::Slash)
+        }
+        change_state!(lex_main);
+    }
+
+    fn comment(l: &mut Lexer) -> Option<StateFunction> {
+        while let Some(c) = l.next() {
+            if c == '\n' {
+                break;
+            }
+        }
+        l.ignore();
+        change_state!(lex_main);
     }
 
     fn assign_or_eq(l: &mut Lexer) -> Option<StateFunction> {
@@ -191,14 +212,25 @@ impl<'a> Lexer<'a> {
         change_state!(lex_main);
     }
 
-    fn lex_ident(l: &mut Lexer) -> Option<StateFunction> {
+    fn keyword(l: &mut Lexer) -> Option<StateFunction> {
         l.accept_while(is_letter);
         let current_slice = &l.input[l.start..l.pos];
         let token = match current_slice {
             "fn" => Token::Function,
             "let" => Token::Let,
-            _ => Token::Ident(current_slice),
+            "if" => Token::If,
+            "else" => Token::Else,
+            "true" => Token::True,
+            "false" => Token::False,
+            _ => change_state!(ident),
         };
+        l.emit(token);
+        None
+    }
+
+    fn ident(l: &mut Lexer) -> Option<StateFunction> {
+        let current_slice = &l.input[l.start..l.pos];
+        let token = Token::Ident(current_slice);
         l.emit(token);
         change_state!(lex_main);
     }
@@ -208,7 +240,7 @@ const fn is_linebreak(c: char) -> bool {
     c == '\n'
 }
 
-const fn is_white_space(c: char) -> bool {
+const fn is_whitespace(c: char) -> bool {
     c.is_ascii_whitespace()
 }
 
@@ -228,38 +260,121 @@ const fn is_letter(c: char) -> bool {
 mod tests {
     use super::*;
     use std::thread;
+    use Token::*;
 
-    #[test]
-    fn lex_test() {
-        let input = "let five = 5;
-let ten = 10;
-
-let add = fn(x, y) {
-    x + y;
-};
-
-let result = add(five, ten);
-!-/*5;
-5 < 10 > 5;
-
-if (5 < 10) {
-    return true;
-} else {
-    return false;
-}
-
-10 == 10;
-10 != 9;";
-        // let expected_tokens = [
-
-        // ]
+    fn test_lexer(input: &'static str, expected_tokens: &[Token]) {
         let (sender, receiver) = channel();
         let handle = thread::spawn(move || {
             Lexer::begin_lexing(input, sender);
         });
+        let mut idx = 0;
         while let Ok(token) = receiver.recv() {
-            println!("Token received from channel: {:?}", token);
+            if expected_tokens[idx] != token {
+                panic!(
+                    "Expected token {:?} does not equal actual token {:?} (idx {})",
+                    expected_tokens[idx], token, idx
+                )
+            }
+            idx += 1;
         }
         handle.join().expect("Failed to join thread");
+    }
+
+    #[test]
+    fn lex1_test() {
+        let input = "let five = 5;";
+        let expected_tokens = &[Let, Ident("five"), Assign, Number("5"), Semicolon];
+        test_lexer(input, expected_tokens);
+    }
+
+    #[test]
+    fn lex_funtion_test() {
+        let input = "let add = fn(x, y) {
+    x + y;
+}";
+        let expected_tokens = [
+            Let,
+            Ident("add"),
+            Assign,
+            Function,
+            Lparen,
+            Ident("x"),
+            Comma,
+            Ident("y"),
+            Rparen,
+            Lbrace,
+            Ident("x"),
+            Plus,
+            Ident("y"),
+            Semicolon,
+            Rparen,
+        ];
+    }
+
+    #[test]
+    fn assign_or_eq_test() {
+        let input = "let add = 20;
+20 == 20;";
+
+        let expected_tokens = &[
+            Let,
+            Ident("add"),
+            Assign,
+            Number("20"),
+            Semicolon,
+            Number("20"),
+            Eq,
+            Number("20"),
+            Semicolon,
+        ];
+
+        test_lexer(input, expected_tokens);
+    }
+
+    #[test]
+    fn comment_test() {
+        let input = "// this is a comment
+20 / 2;";
+
+        let expected_tokens = &[Number("20"), Slash, Number("2"), Semicolon];
+
+        test_lexer(input, expected_tokens);
+    }
+
+    #[test]
+    fn operators_test() {
+        let input = "!-/*5;";
+        let expected_tokens = &[Bang, Minus, Slash, Asterisk, Number("5"), Semicolon];
+        test_lexer(input, expected_tokens);
+    }
+
+    #[test]
+    fn if_statement_test() {
+        let input = "if (5 < 10) {
+return true;
+} else {
+    return false;
+}
+";
+        let expected_tokens = &[
+            If,
+            Lparen,
+            Number("5"),
+            Lt,
+            Number("10"),
+            Rbrace,
+            Return,
+            True,
+            Semicolon,
+            Comma,
+            Lbrace,
+            Else,
+            Rbrace,
+            Return,
+            False,
+            Semicolon,
+            Rparen,
+        ];
+        test_lexer(input, expected_tokens);
     }
 }
