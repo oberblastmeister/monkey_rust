@@ -14,6 +14,11 @@ macro_rules! change_state {
 
 struct StateFunction(fn(&mut Lexer) -> Option<StateFunction>);
 
+enum State<'a> {
+    Function(fn(&mut Lexer) -> State<'a>),
+    Token(Token<'a>),
+}
+
 impl StateFunction {
     fn start_state() -> Option<StateFunction> {
         change_state!(lex_main);
