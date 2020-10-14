@@ -2,9 +2,7 @@
 #[allow(unused_variables)]
 mod tokens;
 
-use std::sync::mpsc::{channel, Sender};
-
-use tokens::Token;
+use tokens::Token::{self, *};
 
 macro_rules! change_state {
     ($name:ident) => {
@@ -13,11 +11,6 @@ macro_rules! change_state {
 }
 
 struct StateFunction(fn(&mut Lexer) -> Option<StateFunction>);
-
-enum State<'a> {
-    Function(fn(&mut Lexer) -> State<'a>),
-    Token(Token<'a>),
-}
 
 impl StateFunction {
     fn start_state() -> Option<StateFunction> {
@@ -31,34 +24,26 @@ impl StateFunction {
     }
 }
 
-pub struct Lexer<'a> {
-    input: &'a str,
+pub struct Lexer<'input> {
+    input: &'input str,
     start: usize,
     pos: usize,
-    token_sender: Sender<Token<'a>>,
     current_line: usize,
+    token: Option<Token<'input>>
 }
 
-impl<'a> Lexer<'a> {
-    pub fn begin_lexing(input: &'a str, sender: Sender<Token<'a>>) {
-        let mut lexer = Lexer {
+impl<'input> Lexer<'input> {
+    pub fn new(input: &str) -> Lexer<'_> {
+        Lexer {
             input,
             start: 0,
             pos: 0,
-            token_sender: sender,
+            token: None,
             current_line: 0,
-        };
-        lexer.run()
-    }
-
-    fn run(&mut self) {
-        let mut state = StateFunction::start_state();
-        while let Some(next_state) = state {
-            state = next_state.f(self)
         }
     }
 
-    fn next(&mut self) -> Option<char> {
+    fn next_char(&mut self) -> Option<char> {
         match self.input[self.pos..].chars().next() {
             Some(c) => {
                 if is_linebreak(c) {
@@ -71,10 +56,6 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn current_slice(&self) -> &str {
-        &self.input[self.start..self.pos]
-    }
-
     fn backup(&mut self) {
         self.pos -= 1;
     }
@@ -83,15 +64,13 @@ impl<'a> Lexer<'a> {
         self.start = self.pos;
     }
 
-    fn emit(&mut self, token: Token<'a>) {
-        self.token_sender
-            .send(token)
-            .expect("Unable to send token on channel");
+    fn emit(&mut self, token: Token<'input>) {
+        self.token = Some(token);
         self.ignore();
     }
 
     fn accept(&mut self, valid: &str) -> bool {
-        match self.next() {
+        match self.next_char() {
             Some(n) if valid.contains(n) => true,
             _ => {
                 self.backup();
@@ -101,7 +80,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn accept_run(&mut self, valid: &str) {
-        while let Some(n) = self.next() {
+        while let Some(n) = self.next_char() {
             if !valid.contains(n) {
                 break;
             }
@@ -110,7 +89,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn accept_while(&mut self, predicate: impl Fn(char) -> bool) {
-        while let Some(n) = self.next() {
+        while let Some(n) = self.next_char() {
             if !predicate(n) {
                 break;
             }
@@ -119,9 +98,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn lex_main(l: &mut Lexer) -> Option<StateFunction> {
-        use Token::*;
-
-        while let Some(c) = l.next() {
+        while let Some(c) = l.next_char() {
             let token = match c {
                 '=' => change_state!(assign_or_eq),
                 ';' => Semicolon,
@@ -134,10 +111,10 @@ impl<'a> Lexer<'a> {
                 '-' => Minus,
                 '{' => Lbrace,
                 '}' => Rbrace,
-                '>' => change_state!(lex_gt),
-                '<' => change_state!(lex_lt),
-                '!' => change_state!(lex_bang_or_not_eq),
-                _ if is_start_of_number(c) => change_state!(lex_number),
+                '>' => change_state!(gt),
+                '<' => change_state!(lt),
+                '!' => change_state!(bang_or_not_eq),
+                _ if is_start_of_number(c) => change_state!(number),
                 _ if is_letter(c) => change_state!(keyword),
                 _ if is_whitespace(c) => change_state!(whitespace),
                 _ => Illegal,
@@ -149,7 +126,7 @@ impl<'a> Lexer<'a> {
 
     fn whitespace(l: &mut Lexer) -> Option<StateFunction> {
         l.ignore();
-        change_state!(lex_main);
+        change_state!(lex_main)
     }
 
     fn slash_or_comment(l: &mut Lexer) -> Option<StateFunction> {
@@ -158,17 +135,16 @@ impl<'a> Lexer<'a> {
         } else {
             l.emit(Token::Slash)
         }
-        change_state!(lex_main);
+        None
     }
 
     fn comment(l: &mut Lexer) -> Option<StateFunction> {
-        while let Some(c) = l.next() {
+        while let Some(c) = l.next_char() {
             if c == '\n' {
                 break;
             }
         }
-        l.ignore();
-        change_state!(lex_main);
+        change_state!(lex_main)
     }
 
     fn assign_or_eq(l: &mut Lexer) -> Option<StateFunction> {
@@ -177,56 +153,55 @@ impl<'a> Lexer<'a> {
         } else {
             l.emit(Token::Assign)
         }
-        change_state!(lex_main);
+        None
     }
 
-    fn lex_gt(l: &mut Lexer) -> Option<StateFunction> {
+    fn gt(l: &mut Lexer) -> Option<StateFunction> {
         if l.accept("=") {
             l.emit(Token::GtEq);
         } else {
             l.emit(Token::Gt);
         }
-        change_state!(lex_main);
+        None
     }
 
-    fn lex_bang_or_not_eq(l: &mut Lexer) -> Option<StateFunction> {
+    fn bang_or_not_eq(l: &mut Lexer) -> Option<StateFunction> {
         if l.accept("=") {
             l.emit(Token::NotEq);
         } else {
             l.emit(Token::Bang);
         }
-        change_state!(lex_main)
+        None
     }
 
-    fn lex_lt(l: &mut Lexer) -> Option<StateFunction> {
+    fn lt(l: &mut Lexer) -> Option<StateFunction> {
         if l.accept("=") {
             l.emit(Token::LtEq);
         } else {
             l.emit(Token::Lt);
         }
-        change_state!(lex_main);
+        None
     }
 
-    fn lex_number(l: &mut Lexer) -> Option<StateFunction> {
+    fn number(l: &mut Lexer) -> Option<StateFunction> {
         l.accept_while(is_digit);
         if l.accept(".") {
             l.accept_while(is_digit);
         }
 
         l.emit(Token::Number(&l.input[l.start..l.pos]));
-        change_state!(lex_main);
+        None
     }
 
     fn keyword(l: &mut Lexer) -> Option<StateFunction> {
         l.accept_while(is_letter);
-        let current_slice = &l.input[l.start..l.pos];
-        let token = match current_slice {
-            "fn" => Token::Function,
-            "let" => Token::Let,
-            "if" => Token::If,
-            "else" => Token::Else,
-            "true" => Token::True,
-            "false" => Token::False,
+        let token = match &l.input[l.start..l.pos] {
+            "fn" => Function,
+            "let" => Let,
+            "if" => If,
+            "else" => Else,
+            "true" => True,
+            "false" => False,
             _ => change_state!(ident),
         };
         l.emit(token);
@@ -234,10 +209,21 @@ impl<'a> Lexer<'a> {
     }
 
     fn ident(l: &mut Lexer) -> Option<StateFunction> {
-        let current_slice = &l.input[l.start..l.pos];
-        let token = Token::Ident(current_slice);
+        let token = Ident(&l.input[l.start..l.pos]);
         l.emit(token);
-        change_state!(lex_main);
+        None
+    }
+}
+
+impl<'input> Iterator for Lexer<'input> {
+    type Item = Token<'input>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut state = StateFunction::start_state();
+        while let Some(next_state) = state {
+            state = next_state.f(self)
+        }
+        self.token.take()
     }
 }
 
@@ -264,25 +250,10 @@ const fn is_letter(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
-    use Token::*;
 
     fn test_lexer(input: &'static str, expected_tokens: &[Token]) {
-        let (sender, receiver) = channel();
-        let handle = thread::spawn(move || {
-            Lexer::begin_lexing(input, sender);
-        });
-        let mut idx = 0;
-        while let Ok(token) = receiver.recv() {
-            if expected_tokens[idx] != token {
-                panic!(
-                    "Expected token {:?} does not equal actual token {:?} (idx {})",
-                    expected_tokens[idx], token, idx
-                )
-            }
-            idx += 1;
-        }
-        handle.join().expect("Failed to join thread");
+        let res: Vec<_> = Lexer::new(input).collect();
+        assert_eq!(res, expected_tokens);
     }
 
     #[test]
@@ -297,7 +268,7 @@ mod tests {
         let input = "let add = fn(x, y) {
     x + y;
 }";
-        let expected_tokens = [
+        let expected_tokens = &[
             Let,
             Ident("add"),
             Assign,
@@ -314,6 +285,7 @@ mod tests {
             Semicolon,
             Rparen,
         ];
+        test_lexer(input, expected_tokens);
     }
 
     #[test]
