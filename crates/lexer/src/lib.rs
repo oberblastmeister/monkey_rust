@@ -2,11 +2,16 @@
 #[allow(unused_variables)]
 mod tokens;
 
+use log::debug;
+use log::info;
 use tokens::Token::{self, *};
 
 macro_rules! change_state {
     ($name:ident) => {
-        return Some(StateFunction(Lexer::$name));
+        {
+            info!("Next state function: {}::{}", "Lexer", stringify!($name));
+            return Some(StateFunction(Lexer::$name));
+        }
     };
 }
 
@@ -44,16 +49,19 @@ impl<'input> Lexer<'input> {
     }
 
     fn next_char(&mut self) -> Option<char> {
-        match self.input[self.pos..].chars().next() {
-            Some(c) => {
-                if is_linebreak(c) {
-                    self.current_line += 1;
-                }
-                self.pos += 1;
-                Some(c)
+        let res = self.input[self.pos..].chars().next();
+
+        if let Some(c) = res {
+            if is_linebreak(c) {
+                self.current_line += 1;
+                debug!("Next char: {:?}", c);
             }
-            None => None,
+        } else {
+            debug!("No next char");
         }
+        debug!("Pos: {}", self.pos);
+        self.pos += 1;
+        res
     }
 
     fn backup(&mut self) {
@@ -93,6 +101,7 @@ impl<'input> Lexer<'input> {
 
     fn accept_while(&mut self, predicate: impl Fn(char) -> bool) {
         while let Some(n) = self.next_char() {
+            debug!("accept while char: {:?}", n);
             if !predicate(n) {
                 break;
             }
@@ -225,7 +234,7 @@ impl<'input> Iterator for Lexer<'input> {
     fn next(&mut self) -> Option<Self::Item> {
         let mut state = StateFunction::start_state();
         while let Some(next_state) = state {
-            state = next_state.f(self)
+            state = next_state.f(self);
         }
         self.token.take()
     }
@@ -356,6 +365,33 @@ return true;
             Semicolon,
             Rbrace,
         ];
+        test_lexer(input, expected_tokens);
+    }
+
+    #[test]
+    fn single_line_test() {
+        let input = "let number = 50;";
+        let expected_tokens = &[
+            Let,
+            Ident("number"),
+            Assign,
+            Number("50"),
+            Semicolon,
+        ];
+        test_lexer(input, expected_tokens);
+    }
+    
+    #[test]
+    fn none_test() {
+        let input = "";
+        let expected_tokens = &[];
+        test_lexer(input, expected_tokens);
+    }
+
+    #[test]
+    fn only_newlines_test() {
+        let input = "\n\n\n";
+        let expected_tokens = &[];
         test_lexer(input, expected_tokens);
     }
 }

@@ -11,6 +11,8 @@ use rustyline::Editor;
 use opt::Opt;
 
 fn main() {
+    env_logger::init();
+
     let opt: Opt = Opt::parse();
 
     match opt.file_path {
@@ -25,18 +27,9 @@ fn main() {
                 match readline {
                     Ok(line) => {
                         rl.add_history_entry(line.as_str());
-                        thread::scope(|s| {
-                            let (sender, receiver) = channel();
-                            s.spawn(|_| {
-                                Lexer::begin_lexing(&line, sender);
-                            });
-                            let token = receiver.recv();
+                        for token in Lexer::new(&line) {
                             println!("{:?}", token);
-                            // while let Ok(token) = receiver.recv() {
-                            //     println!("Token: {:?}", token);
-                            // }
-                        })
-                        .expect("Child thread panicked");
+                        }
                     }
                     Err(ReadlineError::Interrupted) => {
                         println!("CTRL-C");
