@@ -65,7 +65,10 @@ impl<'input> Lexer<'input> {
     }
 
     fn emit(&mut self, token: Token<'input>) {
-        self.token = Some(token);
+        match self.token {
+            Some(ref token) => panic!(format!("Attempting to override token `{:?}` using emit", token)),
+            None => self.token = Some(token),
+        }
         self.ignore();
     }
 
@@ -98,29 +101,28 @@ impl<'input> Lexer<'input> {
     }
 
     fn lex_main(l: &mut Lexer) -> Option<StateFunction> {
-        while let Some(c) = l.next_char() {
-            let token = match c {
-                '=' => change_state!(assign_or_eq),
-                ';' => Semicolon,
-                '(' => Lparen,
-                ')' => Rparen,
-                ',' => Comma,
-                '+' => Plus,
-                '*' => Asterisk,
-                '/' => change_state!(slash_or_comment),
-                '-' => Minus,
-                '{' => Lbrace,
-                '}' => Rbrace,
-                '>' => change_state!(gt),
-                '<' => change_state!(lt),
-                '!' => change_state!(bang_or_not_eq),
-                _ if is_start_of_number(c) => change_state!(number),
-                _ if is_letter(c) => change_state!(keyword),
-                _ if is_whitespace(c) => change_state!(whitespace),
-                _ => Illegal,
-            };
-            l.emit(token);
-        }
+        let c = l.next_char()?;
+        let token = match c {
+            '=' => change_state!(assign_or_eq),
+            ';' => Semicolon,
+            '(' => Lparen,
+            ')' => Rparen,
+            ',' => Comma,
+            '+' => Plus,
+            '*' => Asterisk,
+            '/' => change_state!(slash_or_comment),
+            '-' => Minus,
+            '{' => Lbrace,
+            '}' => Rbrace,
+            '>' => change_state!(gt),
+            '<' => change_state!(lt),
+            '!' => change_state!(bang_or_not_eq),
+            _ if is_start_of_number(c) => change_state!(number),
+            _ if is_letter(c) => change_state!(keyword),
+            _ if is_whitespace(c) => change_state!(whitespace),
+            _ => Illegal,
+        };
+        l.emit(token);
         None
     }
 
@@ -144,6 +146,7 @@ impl<'input> Lexer<'input> {
                 break;
             }
         }
+        l.ignore();
         change_state!(lex_main)
     }
 
@@ -197,6 +200,7 @@ impl<'input> Lexer<'input> {
         l.accept_while(is_letter);
         let token = match &l.input[l.start..l.pos] {
             "fn" => Function,
+            "return" => Return,
             "let" => Let,
             "if" => If,
             "else" => Else,
@@ -264,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn lex_funtion_test() {
+    fn lex_function_test() {
         let input = "let add = fn(x, y) {
     x + y;
 }";
@@ -283,7 +287,7 @@ mod tests {
             Plus,
             Ident("y"),
             Semicolon,
-            Rparen,
+            Rbrace,
         ];
         test_lexer(input, expected_tokens);
     }
@@ -339,18 +343,18 @@ return true;
             Number("5"),
             Lt,
             Number("10"),
-            Rbrace,
+            Rparen,
+            Lbrace,
             Return,
             True,
             Semicolon,
-            Comma,
-            Lbrace,
-            Else,
             Rbrace,
+            Else,
+            Lbrace,
             Return,
             False,
             Semicolon,
-            Rparen,
+            Rbrace,
         ];
         test_lexer(input, expected_tokens);
     }
