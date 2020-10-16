@@ -282,6 +282,7 @@ name = "lexer"
 version = "0.1.0"
 dependencies = [
  "crossbeam",
+ "env_logger",
  "log",
 ]
 

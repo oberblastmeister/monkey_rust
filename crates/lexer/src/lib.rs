@@ -4,6 +4,7 @@ mod tokens;
 
 use log::debug;
 use log::info;
+use log::trace;
 use tokens::Token::{self, *};
 
 macro_rules! change_state {
@@ -48,18 +49,44 @@ impl<'input> Lexer<'input> {
         }
     }
 
+    // fn next_char(&mut self) -> Option<char> {
+    //     let res = self.input[self.pos..].chars().next();
+
+    //     if let Some(c) = res {
+    //         if is_linebreak(c) {
+    //             self.current_line += 1;
+    //             debug!("Next char: {:?}", c);
+    //         }
+    //     } else {
+    //         debug!("No next char");
+    //     }
+    //     debug!("Pos: {}", self.pos);
+    //     self.pos += 1;
+    //     res
+    // }
+
     fn next_char(&mut self) -> Option<char> {
-        let res = self.input[self.pos..].chars().next();
+        debug!("current slice: `{}`", &self.input[self.pos..]);
+        debug!("current range: {:?}", self.pos..);
+        trace!("input len: {}", self.input.len());
+        debug!("Pos: {}", self.pos);
+        // let res = if self.pos >= self.input.len()
+        let res = if self.pos >= self.input.len() {
+            None
+        } else {
+            let c = self.input[self.pos..].chars().next().expect("BUG: char must be some");
+            Some(c)
+        };
+        // let res = self.input[self.pos..].chars().next();
+        debug!("res: {:?}", res);
+        // let res = self.input.get(self.pos..).and_then(|s| s.chars().next());
 
         if let Some(c) = res {
             if is_linebreak(c) {
                 self.current_line += 1;
-                debug!("Next char: {:?}", c);
             }
         } else {
-            debug!("No next char");
         }
-        debug!("Pos: {}", self.pos);
         self.pos += 1;
         res
     }
@@ -265,6 +292,7 @@ mod tests {
     use super::*;
 
     fn test_lexer(input: &'static str, expected_tokens: &[Token]) {
+        let _ = env_logger::builder().is_test(true).try_init();
         let res: Vec<_> = Lexer::new(input).collect();
         assert_eq!(res, expected_tokens);
     }
@@ -322,12 +350,19 @@ mod tests {
     }
 
     #[test]
-    fn comment_test() {
+    fn comment_and_other_test() {
         let input = "// this is a comment
 20 / 2;";
 
         let expected_tokens = &[Number("20"), Slash, Number("2"), Semicolon];
 
+        test_lexer(input, expected_tokens);
+    }
+
+    #[test]
+    fn comment_only_test() {
+        let input = "// this is another comment";
+        let expected_tokens = &[];
         test_lexer(input, expected_tokens);
     }
 
@@ -392,6 +427,19 @@ return true;
     fn only_newlines_test() {
         let input = "\n\n\n";
         let expected_tokens = &[];
+        test_lexer(input, expected_tokens);
+    }
+
+    #[test]
+    fn unicode_test() {
+        let input = "let Здравствуйте = 100;";
+        let expected_tokens = &[
+            Let,
+            Ident("Здравствуйте"),
+            Assign,
+            Number("100"),
+            Semicolon
+        ];
         test_lexer(input, expected_tokens);
     }
 }
