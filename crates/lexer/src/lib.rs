@@ -1,6 +1,7 @@
 #[allow(dead_code)]
 #[allow(unused_variables)]
 mod tokens;
+mod advanced_chars;
 
 use std::str;
 
