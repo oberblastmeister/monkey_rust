@@ -2,11 +2,14 @@
 #[allow(unused_variables)]
 mod tokens;
 
+use std::str;
+
 use log::debug;
 use log::info;
 use log::trace;
 use tokens::Token::{self, *};
 
+/// macro to make return state functions easier
 macro_rules! change_state {
     ($name:ident) => {
         {
@@ -14,6 +17,17 @@ macro_rules! change_state {
             return Some(StateFunction(Lexer::$name));
         }
     };
+}
+
+/// use macro instead of function to bypass lifetimes
+macro_rules! current_slice {
+    ($lexer:ident) => {
+        {
+            let bytes = &$lexer.input[$lexer.start..$lexer.pos];
+            let s = str::from_utf8(bytes).unwrap();
+            s
+        }
+    }
 }
 
 struct StateFunction(fn(&mut Lexer) -> Option<StateFunction>);
@@ -31,7 +45,7 @@ impl StateFunction {
 }
 
 pub struct Lexer<'input> {
-    input: &'input str,
+    input: &'input [u8],
     start: usize,
     pos: usize,
     current_line: usize,
@@ -41,7 +55,7 @@ pub struct Lexer<'input> {
 impl<'input> Lexer<'input> {
     pub fn new(input: &str) -> Lexer<'_> {
         Lexer {
-            input,
+            input: input.as_bytes(),
             start: 0,
             pos: 0,
             token: None,
@@ -49,7 +63,7 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    // fn next_char(&mut self) -> Option<char> {
+    // fn next_byte(&mut self) -> Option<char> {
     //     let res = self.input[self.pos..].chars().next();
 
     //     if let Some(c) = res {
@@ -65,8 +79,8 @@ impl<'input> Lexer<'input> {
     //     res
     // }
 
-    fn next_char(&mut self) -> Option<char> {
-        debug!("current slice: `{}`", &self.input[self.pos..]);
+    fn next_byte(&mut self) -> Option<u8> {
+        debug!("current slice: `{:?}`", &self.input[self.pos..]);
         debug!("current range: {:?}", self.pos..);
         trace!("input len: {}", self.input.len());
         debug!("Pos: {}", self.pos);
@@ -74,8 +88,8 @@ impl<'input> Lexer<'input> {
         let res = if self.pos >= self.input.len() {
             None
         } else {
-            let c = self.input[self.pos..].chars().next().expect("BUG: char must be some");
-            Some(c)
+            let b = self.input[self.pos];
+            Some(b)
         };
         // let res = self.input[self.pos..].chars().next();
         debug!("res: {:?}", res);
@@ -107,9 +121,9 @@ impl<'input> Lexer<'input> {
         self.ignore();
     }
 
-    fn accept(&mut self, valid: &str) -> bool {
-        match self.next_char() {
-            Some(n) if valid.contains(n) => true,
+    fn accept(&mut self, valid: u8) -> bool {
+        match self.next_byte() {
+            Some(n) if n == valid => true,
             _ => {
                 self.backup();
                 false
@@ -117,17 +131,27 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn accept_run(&mut self, valid: &str) {
-        while let Some(n) = self.next_char() {
-            if !valid.contains(n) {
+    fn accept_multiple(&mut self, valid: &[u8]) -> bool {
+        match self.next_byte() {
+            Some(n) if valid.contains(&n) => true,
+            _ => {
+                self.backup();
+                false
+            }
+        }
+    }
+
+    fn accept_run(&mut self, valid: &[u8]) {
+        while let Some(n) = self.next_byte() {
+            if !valid.contains(&n) {
                 break;
             }
         }
         self.backup();
     }
 
-    fn accept_while(&mut self, predicate: impl Fn(char) -> bool) {
-        while let Some(n) = self.next_char() {
+    fn accept_while(&mut self, predicate: impl Fn(u8) -> bool) {
+        while let Some(n) = self.next_byte() {
             debug!("accept while char: {:?}", n);
             if !predicate(n) {
                 break;
@@ -137,26 +161,29 @@ impl<'input> Lexer<'input> {
     }
 
     fn lex_main(l: &mut Lexer) -> Option<StateFunction> {
-        let c = l.next_char()?;
-        let token = match c {
-            '=' => change_state!(assign_or_eq),
-            ';' => Semicolon,
-            '(' => Lparen,
-            ')' => Rparen,
-            ',' => Comma,
-            '+' => Plus,
-            '*' => Asterisk,
-            '/' => change_state!(slash_or_comment),
-            '-' => Minus,
-            '{' => Lbrace,
-            '}' => Rbrace,
-            '>' => change_state!(gt),
-            '<' => change_state!(lt),
-            '!' => change_state!(bang_or_not_eq),
-            _ if is_start_of_number(c) => change_state!(number),
-            _ if is_letter(c) => change_state!(keyword),
-            _ if is_whitespace(c) => change_state!(whitespace),
-            _ => Illegal,
+        let token = loop {
+            let b = l.next_byte()?;
+            break match b {
+                b'=' => change_state!(assign_or_eq),
+                b';' => Semicolon,
+                b'(' => Lparen,
+                b')' => Rparen,
+                b',' => Comma,
+                b'+' => Plus,
+                b'*' => Asterisk,
+                b'/' => change_state!(slash_or_comment),
+                b'-' => Minus,
+                b'{' => Lbrace,
+                b'}' => Rbrace,
+                b'>' => change_state!(gt),
+                b'<' => change_state!(lt),
+                b'!' => change_state!(bang_or_not_eq),
+                _ if is_start_of_number(b) => change_state!(number),
+                _ if is_letter(b) => change_state!(keyword),
+                _ if is_whitespace(b) => change_state!(whitespace),
+                _ => continue,
+                // _ => Illegal,
+            }
         };
         l.emit(token);
         None
@@ -168,7 +195,7 @@ impl<'input> Lexer<'input> {
     }
 
     fn slash_or_comment(l: &mut Lexer) -> Option<StateFunction> {
-        if l.accept("/") {
+        if l.accept(b'/') {
             change_state!(comment);
         } else {
             l.emit(Token::Slash)
@@ -177,8 +204,8 @@ impl<'input> Lexer<'input> {
     }
 
     fn comment(l: &mut Lexer) -> Option<StateFunction> {
-        while let Some(c) = l.next_char() {
-            if c == '\n' {
+        while let Some(c) = l.next_byte() {
+            if c == b'\n' {
                 break;
             }
         }
@@ -187,7 +214,7 @@ impl<'input> Lexer<'input> {
     }
 
     fn assign_or_eq(l: &mut Lexer) -> Option<StateFunction> {
-        if l.accept("=") {
+        if l.accept(b'=') {
             l.emit(Token::Eq)
         } else {
             l.emit(Token::Assign)
@@ -196,7 +223,7 @@ impl<'input> Lexer<'input> {
     }
 
     fn gt(l: &mut Lexer) -> Option<StateFunction> {
-        if l.accept("=") {
+        if l.accept(b'=') {
             l.emit(Token::GtEq);
         } else {
             l.emit(Token::Gt);
@@ -205,7 +232,7 @@ impl<'input> Lexer<'input> {
     }
 
     fn bang_or_not_eq(l: &mut Lexer) -> Option<StateFunction> {
-        if l.accept("=") {
+        if l.accept(b'=') {
             l.emit(Token::NotEq);
         } else {
             l.emit(Token::Bang);
@@ -214,7 +241,7 @@ impl<'input> Lexer<'input> {
     }
 
     fn lt(l: &mut Lexer) -> Option<StateFunction> {
-        if l.accept("=") {
+        if l.accept(b'=') {
             l.emit(Token::LtEq);
         } else {
             l.emit(Token::Lt);
@@ -224,17 +251,17 @@ impl<'input> Lexer<'input> {
 
     fn number(l: &mut Lexer) -> Option<StateFunction> {
         l.accept_while(is_digit);
-        if l.accept(".") {
+        if l.accept(b'.') {
             l.accept_while(is_digit);
         }
 
-        l.emit(Token::Number(&l.input[l.start..l.pos]));
+        l.emit(Token::Number(current_slice!(l)));
         None
     }
 
     fn keyword(l: &mut Lexer) -> Option<StateFunction> {
         l.accept_while(is_letter);
-        let token = match &l.input[l.start..l.pos] {
+        let token = match str::from_bytes(&l.input[l.start..l.pos]) {
             "fn" => Function,
             "return" => Return,
             "let" => Let,
@@ -249,11 +276,26 @@ impl<'input> Lexer<'input> {
     }
 
     fn ident(l: &mut Lexer) -> Option<StateFunction> {
-        let token = Ident(&l.input[l.start..l.pos]);
-        l.emit(token);
+        l.emit(Ident(current_slice!(l)));
         None
     }
 }
+
+trait FromBytes {
+    fn from_bytes<'a>(bytes: &'a [u8]) -> &'a str;
+}
+
+impl FromBytes for str {
+    fn from_bytes<'a>(bytes: &'a [u8]) -> &'a str {
+        str::from_utf8(bytes).unwrap()
+    }
+}
+
+// impl From<&[u8]> for &str {
+//     fn from(bytes: &[u8]) -> Self {
+//         str::from_utf8(bytes).unwrap()
+//     }
+// }
 
 impl<'input> Iterator for Lexer<'input> {
     type Item = Token<'input>;
@@ -267,24 +309,28 @@ impl<'input> Iterator for Lexer<'input> {
     }
 }
 
-const fn is_linebreak(c: char) -> bool {
-    c == '\n'
+fn current_slice<'a>(l: &'a Lexer) -> &'a [u8] {
+    &l.input[l.start..l.pos]
 }
 
-const fn is_whitespace(c: char) -> bool {
+const fn is_linebreak(c: u8) -> bool {
+    c == b'\n'
+}
+
+const fn is_whitespace(c: u8) -> bool {
     c.is_ascii_whitespace()
 }
 
-const fn is_start_of_number(c: char) -> bool {
-    is_digit(c) || c == '.'
+const fn is_start_of_number(c: u8) -> bool {
+    is_digit(c) || c == b'.'
 }
 
-const fn is_digit(c: char) -> bool {
+const fn is_digit(c: u8) -> bool {
     c.is_ascii_digit()
 }
 
-const fn is_letter(c: char) -> bool {
-    c.is_ascii_alphabetic() || c == '_'
+const fn is_letter(c: u8) -> bool {
+    c.is_ascii_alphabetic() || c == b'_'
 }
 
 #[cfg(test)]

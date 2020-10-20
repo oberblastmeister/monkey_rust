@@ -39,3 +39,29 @@ pub enum Token<'a> {
     Eq,
     NotEq,
 }
+
+pub enum Operator {
+    Assign,
+    Plus,
+    Minus,
+    Bang,
+    Asterisk,
+    Slash,
+    Lt,
+    Gt,
+    LtEq,
+    GtEq,
+}
+
+pub enum Keyword {
+    Function,
+    Let,
+    True,
+    False,
+    If,
+    Else,
+    Return,
+
+    Eq,
+    NotEq,
+}
