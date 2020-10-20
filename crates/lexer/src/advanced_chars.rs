@@ -1,6 +1,8 @@
 use std::str::CharIndices;
 use std::iter::FusedIterator;
 
+use log::debug;
+
 pub struct AdvancedChars<'a> {
     chars: CharIndices<'a>,
     peek_ch: Option<char>,
@@ -30,7 +32,9 @@ impl<'a> AdvancedChars<'a> {
     }
 
     pub fn peek(&self) -> Option<char> {
-        self.peek_ch
+        let res = self.peek_ch;
+        debug!("peeked char: {:?}", res);
+        res
     }
 
     pub fn peek_pos(&self) -> Option<usize> {
@@ -72,6 +76,7 @@ impl<'a> Iterator for AdvancedChars<'a> {
             }
         }
 
+        debug!("next char {:?}", res);
         res
     }
 }

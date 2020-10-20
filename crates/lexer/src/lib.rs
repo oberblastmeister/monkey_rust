@@ -30,16 +30,23 @@ impl<'input> Lexer<'input> {
     }
 
     fn ignore(&mut self) {
-        self.start = self.chars.current_pos_or_end();
+        let new_start = self.chars.peek_pos_or_end(); 
+        debug!("ignored: start to {}", new_start);
+        self.start = new_start;
     }
 
+    /// accetps a char and returns true
     fn accept(&mut self, valid: char) -> bool {
         match self.chars.peek() {
-            Some(n) if n == valid => {
+            Some(c) if c == valid => {
+                info!("char `{}` is accepted", c);
                 self.chars.next();
                 true
             },
-            _ => false,
+            _ => {
+                info!("char `{:?}` is not accepted", self.chars.peek());
+                false
+            },
         }
     }
 
@@ -65,18 +72,22 @@ impl<'input> Lexer<'input> {
     }
 
     fn accept_while(&mut self, predicate: impl Fn(char) -> bool) {
-        while let Some(n) = self.chars.peek() {
-            debug!("accept while char: {:?}", n);
-            if !predicate(n) {
+        while let Some(c) = self.chars.peek() {
+            if !predicate(c) {
+                info!("char `{}` is not accepted", c);
                 break;
             } else {
-                self.chars.next();
+                info!("char `{}` is accepted", c);
+                if self.chars.next().is_none() {
+                    info!("no more chars in accept_while");
+                    break;
+                };
             }
         }
     }
 
     fn lex_main(&mut self) -> Option<Token<'input>> {
-        loop {
+        let res = loop {
             let c = self.chars.next()?;
             break match c {
                 '=' => self.assign_or_eq(),
@@ -97,9 +108,12 @@ impl<'input> Lexer<'input> {
                 _ if is_letter(c) => self.keyword(),
                 _ if is_whitespace(c) => self.whitespace(),
                 _ => continue,
-                // _ => Illegal,
+                // _ => token(Illegal),
             }
-        }
+        };
+        debug!("res: {:?}", res);
+        self.ignore();
+        res
     }
 
     fn whitespace(&mut self) -> Option<Token<'input>> {
@@ -157,6 +171,7 @@ impl<'input> Lexer<'input> {
     }
 
     fn number(&mut self) -> Option<Token<'input>> {
+        info!("in number state");
         self.accept_while(is_digit);
         if self.accept('.') {
             self.accept_while(is_digit);
@@ -166,6 +181,7 @@ impl<'input> Lexer<'input> {
     }
 
     fn keyword(&mut self) -> Option<Token<'input>> {
+        info!("in keyword state");
         self.accept_while(is_letter);
         match self.current_slice() {
             "fn" => token(Function),
@@ -180,11 +196,18 @@ impl<'input> Lexer<'input> {
     }
 
     fn ident(&mut self) -> Option<Token<'input>> {
+        info!("in ident state");
         token(Ident(self.current_slice()))
     }
 
     fn current_slice(&mut self) -> &'input str {
-        &self.input[self.start..self.chars.current_pos_or_end()]
+        let peek_pos = self.chars.peek_pos_or_end();
+        let start = self.start;
+        let current_slice = &self.input[start..peek_pos];
+        debug!("slice start pos: `{}`", start);
+        debug!("slice end pos: `{}`", peek_pos);
+        debug!("current slice `{}`", current_slice);
+        current_slice
     }
 }
 
@@ -192,7 +215,9 @@ impl<'input> Iterator for Lexer<'input> {
     type Item = Token<'input>;
 
     fn next(&mut self) -> Option<Token<'input>> {
-        self.lex_main()
+        let res = self.lex_main();
+        debug!("next token: {:?}", res);
+        res
     }
 } 
 
@@ -216,8 +241,8 @@ const fn is_digit(c: char) -> bool {
     c.is_ascii_digit()
 }
 
-const fn is_letter(c: char) -> bool {
-    c.is_ascii_alphabetic() || c == '_'
+fn is_letter(c: char) -> bool {
+    c.is_alphabetic() || c == '_'
 }
 
 #[cfg(test)]
@@ -303,6 +328,13 @@ mod tests {
     fn operators_test() {
         let input = "!-/*5;";
         let expected_tokens = &[Bang, Minus, Slash, Asterisk, Number("5"), Semicolon];
+        test_lexer(input, expected_tokens);
+    }
+
+    #[test]
+    fn let_only_test() {
+        let input = "let";
+        let expected_tokens = &[Let];
         test_lexer(input, expected_tokens);
     }
 
