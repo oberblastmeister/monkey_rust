@@ -10,7 +10,7 @@ pub struct AdvancedChars<'a> {
 }
 
 impl<'a> AdvancedChars<'a> {
-    fn new(input: &str) -> AdvancedChars<'_> {
+    pub fn new(input: &str) -> AdvancedChars<'_> {
         let mut chars = input.char_indices();
         let peek_ch  = chars.next().map(|(_, c)| c);
         let current_pos = None;
@@ -37,8 +37,16 @@ impl<'a> AdvancedChars<'a> {
         self.peek_pos
     }
 
+    pub fn peek_pos_or_end(&self) -> usize {
+        self.peek_pos.unwrap_or(self.length)
+    }
+
     pub fn current_pos(&self) -> Option<usize> {
         self.current_pos
+    }
+
+    pub fn current_pos_or_end(&self) -> usize {
+        self.current_pos.unwrap_or(self.length)
     }
 
     pub fn len(&self) -> usize {
