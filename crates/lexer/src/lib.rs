@@ -135,6 +135,7 @@ impl<'input> Lexer<'input> {
                 break;
             }
         }
+        self.ignore();
         self.lex_main()
     }
 
@@ -311,9 +312,7 @@ mod tests {
     fn comment_and_other_test() {
         let input = "// this is a comment
 20 / 2;";
-
         let expected_tokens = &[Number("20"), Slash, Number("2"), Semicolon];
-
         test_lexer(input, expected_tokens);
     }
 
