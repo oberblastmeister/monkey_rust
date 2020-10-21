@@ -90,15 +90,16 @@ impl<'input> Lexer<'input> {
 
     /// Accept multiple chars until predicate is true. The char that caused predicate to be true
     /// whill also be accepted. Returns true if the char is found or false otherwise.
-    fn accept_find(&mut self, predicate: impl Fn(char) -> bool) -> bool {
+    fn accept_find(&mut self, predicate: impl Fn(char) -> bool) -> Option<char> {
         while let Some(c) = self.chars.next() {
             if predicate(c) {
-                return true;
+                info!("found char that matches pred, `{:?}`", c);
+                return Some(c);
             } else {
-                info!("did not find char `{}`, searching again", c);
+                info!("char `{}`, did not match `{}`, searching again", c, stringify!(predicate));
             }
         }
-        false
+        None
     }
 
     /// the main lexer funciton that determines what the token is and weather the state should be
@@ -147,7 +148,8 @@ impl<'input> Lexer<'input> {
     }
 
     fn comment(&mut self) -> Option<Token<'input>> {
-        if !self.accept_find(is_linebreak) {
+        info!("In comment state");
+        if let None = self.accept_find(is_linebreak) {
             if self.input.lines().count() != 1 {
                 panic!("Could not find char that matched function is_linebreak");
             }
@@ -319,14 +321,14 @@ mod tests {
     #[test]
     fn accept_find() {
         let mut lexer = Lexer::new("first line\nnext line");
-        assert!(lexer.accept_find(is_linebreak));
+        assert!(lexer.accept_find(is_linebreak).is_some());
         assert_eq!(lexer.current_slice(), "first line\n");
     }
 
     #[test]
     fn accept_find_none_test() {
         let mut lexer = Lexer::new("first line the same first line");
-        assert!(!lexer.accept_find(is_linebreak));
+        assert!(lexer.accept_find(is_linebreak).is_none());
         assert_eq!(lexer.current_slice(), "first line the same first line")
     }
 
