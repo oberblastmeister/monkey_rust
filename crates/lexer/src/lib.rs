@@ -7,12 +7,12 @@ use std::str;
 
 use log::debug;
 use log::info;
-use log::trace;
 use tokens::Token::{self, *};
 
 use advanced_chars::AdvancedChars;
 
-/// macro to make return state functions easier
+/// lexer struct, holds input str, chars iterator, and start position which is the memorized
+/// position in case the token is more than one char long
 pub struct Lexer<'input> {
     input: &'input str,
     chars: AdvancedChars<'input>,
@@ -20,6 +20,7 @@ pub struct Lexer<'input> {
 }
 
 impl<'input> Lexer<'input> {
+    /// create a new lexer iterator from a string
     pub fn new(input: &str) -> Lexer<'_> {
         let chars = AdvancedChars::new(input);
         Lexer {
@@ -29,13 +30,15 @@ impl<'input> Lexer<'input> {
         }
     }
 
+    /// moves start back to peek position
     fn ignore(&mut self) {
         let new_start = self.chars.peek_pos_or_end(); 
         debug!("ignored: start to {}", new_start);
         self.start = new_start;
     }
 
-    /// accetps a char and returns true
+    /// Accepts the next char is it is equal to valid. Returns true if the next char is equal to
+    /// valid or false.
     fn accept(&mut self, valid: char) -> bool {
         match self.chars.peek() {
             Some(c) if c == valid => {
@@ -71,6 +74,8 @@ impl<'input> Lexer<'input> {
         }
     }
 
+    /// Accepts chars while predicate returns true. Does not accept the char the predicate returns
+    /// false for.
     fn accept_while(&mut self, predicate: impl Fn(char) -> bool) {
         while let Some(c) = self.chars.peek() {
             if !predicate(c) {
@@ -78,38 +83,50 @@ impl<'input> Lexer<'input> {
                 break;
             } else {
                 info!("char `{}` is accepted", c);
-                if self.chars.next().is_none() {
-                    info!("no more chars in accept_while");
-                    break;
-                };
+                self.chars.next();
             }
         }
     }
 
-    fn lex_main(&mut self) -> Option<Token<'input>> {
-        let res = loop {
-            let c = self.chars.next()?;
-            break match c {
-                '=' => self.assign_or_eq(),
-                ';' => token(Semicolon),
-                '(' => token(Lparen),
-                ')' => token(Rparen),
-                ',' => token(Comma),
-                '+' => token(Plus),
-                '*' => token(Asterisk),
-                '/' => self.slash_or_comment(),
-                '-' => token(Minus),
-                '{' => token(Lbrace),
-                '}' => token(Rbrace),
-                '>' => self.gt(),
-                '<' => self.lt(),
-                '!' => self.bang_or_not_eq(),
-                _ if is_start_of_number(c) => self.number(),
-                _ if is_letter(c) => self.keyword(),
-                _ if is_whitespace(c) => self.whitespace(),
-                _ => continue,
-                // _ => token(Illegal),
+    /// Accept multiple chars until predicate is true. The char that caused predicate to be true
+    /// whill also be accepted. Returns true if the char is found or false otherwise.
+    fn accept_find(&mut self, predicate: impl Fn(char) -> bool) -> bool {
+        while let Some(c) = self.chars.next() {
+            if predicate(c) {
+                return true;
+            } else {
+                info!("did not find char `{}`, searching again", c);
             }
+        }
+        false
+    }
+
+    /// the main lexer funciton that determines what the token is and weather the state should be
+    /// passed on to a new function
+    fn lex_main(&mut self) -> Option<Token<'input>> {
+        let c = self.chars.next()?;
+        // if the match arm returns a token, that means the token can only be one char long. if
+        // there is ambiguity about which token should be returned or weather the token is multiple
+        // chars long, a new state function is called that will determine the token
+        let res = match c {
+            '=' => self.assign_or_eq(),
+            ';' => token(Semicolon),
+            '(' => token(Lparen),
+            ')' => token(Rparen),
+            ',' => token(Comma),
+            '+' => token(Plus),
+            '*' => token(Asterisk),
+            '/' => self.slash_or_comment(),
+            '-' => token(Minus),
+            '{' => token(Lbrace),
+            '}' => token(Rbrace),
+            '>' => self.gt(),
+            '<' => self.lt(),
+            '!' => self.bang_or_not_eq(),
+            _ if is_start_of_number(c) => self.number(),
+            _ if is_letter(c) => self.keyword(),
+            _ if is_whitespace(c) => self.whitespace(),
+            _ => token(Illegal),
         };
         debug!("res: {:?}", res);
         self.ignore();
@@ -130,11 +147,11 @@ impl<'input> Lexer<'input> {
     }
 
     fn comment(&mut self) -> Option<Token<'input>> {
-        while let Some(c) = self.chars.next() {
-            if c == '\n' {
-                break;
+        if !self.accept_find(is_linebreak) {
+            if self.input.lines().count() != 1 {
+                panic!("Could not find char that matched function is_linebreak");
             }
-        }
+        };
         self.ignore();
         self.lex_main()
     }
@@ -238,10 +255,12 @@ const fn is_start_of_number(c: char) -> bool {
     is_digit(c) || c == '.'
 }
 
+/// checks if the char is and ascii digit
 const fn is_digit(c: char) -> bool {
     c.is_ascii_digit()
 }
 
+/// checks if the char is a unicode letter
 fn is_letter(c: char) -> bool {
     c.is_alphabetic() || c == '_'
 }
@@ -254,6 +273,61 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
         let res: Vec<_> = Lexer::new(input).collect();
         assert_eq!(res, expected_tokens);
+    }
+
+    #[test]
+    fn lexer_init() {
+        let mut lexer = Lexer::new("hello person");
+        assert_eq!(lexer.current_slice(), "");
+    }
+
+    #[test]
+    fn accept() {
+        let mut lexer = Lexer::new("hi");
+        assert!(lexer.accept('h'));
+        assert_eq!(lexer.current_slice(), "h");
+    }
+
+    #[test]
+    fn accept_fail() {
+        let mut lexer = Lexer::new("wow");
+        assert!(!lexer.accept('h'));
+        assert_eq!(lexer.current_slice(), "");
+    }
+
+    #[test]
+    fn accept_while_none() {
+        let mut lexer = Lexer::new("this");
+        lexer.accept_while(|c| c == 'x');
+        assert_eq!(lexer.current_slice(), "");
+    }
+
+    #[test]
+    fn accept_while_everything() {
+        let mut lexer = Lexer::new("this should be the same");
+        lexer.accept_while(|_| true);
+        assert_eq!(lexer.current_slice(), "this should be the same");
+    }
+
+    #[test]
+    fn accept_while_in_the_middle_test() {
+        let mut lexer = Lexer::new("middle7098");
+        lexer.accept_while(is_letter);
+        assert_eq!(lexer.current_slice(), "middle");
+    }
+
+    #[test]
+    fn accept_find() {
+        let mut lexer = Lexer::new("first line\nnext line");
+        assert!(lexer.accept_find(is_linebreak));
+        assert_eq!(lexer.current_slice(), "first line\n");
+    }
+
+    #[test]
+    fn accept_find_none_test() {
+        let mut lexer = Lexer::new("first line the same first line");
+        assert!(!lexer.accept_find(is_linebreak));
+        assert_eq!(lexer.current_slice(), "first line the same first line")
     }
 
     #[test]
