@@ -1,25 +1,11 @@
 [package]
-name = "monkey_rust"
+name = "common"
 version = "0.1.0"
 authors = ["Brian Shu <littlebubu.shu@gmail.com>"]
 edition = "2018"
 
-[workspace]
-members = [
-    "crates/lexer"
-    "crates/common"
-]
-
-[[bin]]
-name = "monkey"
-path = "crates/repl/main.rs"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lexer = { path = "crates/lexer" }
-clap = "3.0.0-beta.2"
-rustyline = "6.3.0"
-crossbeam-utils = "0.7.2"
 env_logger = "0.7.1"
 log = "0.4.11"

@@ -31,11 +31,11 @@ impl<'a> AdvancedChars<'a> {
         }
     }
 
-    pub fn peek(&self) -> Option<char> {
-        let res = self.peek_ch;
-        debug!("peeked char: {:?}", res);
-        res
-    }
+    // pub fn peek(&self) -> Option<char> {
+    //     let res = self.peek_ch;
+    //     debug!("peeked char: {:?}", res);
+    //     res
+    // }
 
     pub fn peek_pos(&self) -> Option<usize> {
         self.peek_pos
@@ -55,6 +55,14 @@ impl<'a> AdvancedChars<'a> {
 
     pub fn len(&self) -> usize {
         self.length
+    }
+}
+
+impl<'a> Peekable for AdvancedChars<'a> {
+    fn peek(&self) -> Option<char> {
+        let res = self.peek_ch;
+        debug!("peeked char: {:?}", res);
+        res
     }
 }
 
