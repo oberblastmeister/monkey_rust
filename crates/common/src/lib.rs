@@ -101,21 +101,6 @@ pub trait Accept<T: PartialEq + fmt::Debug>: Iterator<Item = T> + Peekable {
             }
         }
     }
-
-    /// Accept multiple until predicate is true. The char that caused predicate to be true
-    /// whill also be accepted. Returns true if the char is found or false otherwise.
-    fn accept_find(&mut self, predicate: impl Fn(&Self::Item) -> bool) -> Option<Self::Item> {
-        self.find(predicate)
-        while let Some(c) = self.next() {
-            if predicate(&c) {
-                info!("found char that matches pred, `{:?}`", c);
-                return Some(c);
-            } else {
-                info!("char `{:?}`, did not match `{:?}`, searching again", c, stringify!(predicate));
-            }
-        }
-        None
-    }
 }
 
 #[cfg(test)]

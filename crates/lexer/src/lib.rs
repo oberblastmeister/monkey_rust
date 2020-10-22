@@ -85,12 +85,7 @@ impl<'input> Lexer<'input> {
 
     fn comment(&mut self) -> Option<Token<'input>> {
         info!("In comment state");
-        // if let None = self.chars.find(is_linebreak) {
-        //     if self.input.lines().count() != 1 {
-        //         panic!("Could not find char that matched function is_linebreak");
-        //     }
-        // }
-        if let None = self.chars.accept_find(is_linebreak) {
+        if let None = self.chars.find(is_linebreak) {
             if self.input.lines().count() != 1 {
                 panic!("Could not find char that matched function is_linebreak");
             }
@@ -264,16 +259,16 @@ mod tests {
     }
 
     #[test]
-    fn accept_find() {
+    fn find() {
         let mut lexer = Lexer::new("first line\nnext line");
-        assert!(lexer.chars.accept_find(is_linebreak).is_some());
+        assert!(lexer.chars.find(is_linebreak).is_some());
         assert_eq!(lexer.current_slice(), "first line\n");
     }
 
     #[test]
-    fn accept_find_none_test() {
+    fn find_none_test() {
         let mut lexer = Lexer::new("first line the same first line");
-        assert!(lexer.chars.accept_find(is_linebreak).is_none());
+        assert!(lexer.chars.find(is_linebreak).is_none());
         assert_eq!(lexer.current_slice(), "first line the same first line")
     }
 
