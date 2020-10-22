@@ -1,5 +1,10 @@
+use std::fmt;
 use std::iter::FusedIterator;
 
+use log::info;
+
+/// Advanced iter is and iterator that is advanced one. It is like Peekable<T> except the peek item
+/// is already advanced.
 pub struct AdvancedIter<T: Iterator> {
     iter: T,
     peek_item: Option<T::Item>,
@@ -8,7 +13,7 @@ pub struct AdvancedIter<T: Iterator> {
 }
 
 impl<T: Iterator> AdvancedIter<T> {
-    fn new(mut iter: T) -> AdvancedIter<T> {
+    pub fn new(mut iter: T) -> AdvancedIter<T> {
         let peek_item = iter.next();
         let current_pos = None;
         let peek_pos = Some(0);
@@ -26,6 +31,10 @@ impl<T: Iterator> AdvancedIter<T> {
 
     pub fn current_pos(&self) -> Option<usize> {
         self.current_pos
+    }
+
+    pub fn peek_item(&self) -> Option<&<Self as Iterator>::Item> {
+        self.peek_item.as_ref()
     }
 }
 
@@ -63,10 +72,60 @@ impl<T: Iterator> Peekable for AdvancedIter<T> {
 
 impl<T: Iterator> FusedIterator for AdvancedIter<T> {  }
 
+pub trait Accept<T: PartialEq + fmt::Debug>: Iterator<Item = T> + Peekable {
+
+    fn accept(&mut self, valid: Self::Item) -> bool {
+        match self.peek() {
+            Some(c) if c == &valid => {
+                info!("char `{:?}` is accepted", c);
+                self.next();
+                true
+            },
+            _ => {
+                info!("char `{:?}` is not accepted", self.peek());
+                false
+            },
+        }
+    }
+
+    /// Accepts while predicate returns true. Does not accept the char the predicate returns
+    /// false for.
+    fn accept_while(&mut self, predicate: impl Fn(&Self::Item) -> bool) {
+        while let Some(c) = self.peek() {
+            if !predicate(&c) {
+                info!("char `{:?}` is not accepted", c);
+                break;
+            } else {
+                info!("char `{:?}` is accepted", c);
+                self.next();
+            }
+        }
+    }
+
+    /// Accept multiple until predicate is true. The char that caused predicate to be true
+    /// whill also be accepted. Returns true if the char is found or false otherwise.
+    fn accept_find(&mut self, predicate: impl Fn(&Self::Item) -> bool) -> Option<Self::Item> {
+        self.find(predicate)
+        while let Some(c) = self.next() {
+            if predicate(&c) {
+                info!("found char that matches pred, `{:?}`", c);
+                return Some(c);
+            } else {
+                info!("char `{:?}`, did not match `{:?}`, searching again", c, stringify!(predicate));
+            }
+        }
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn advanced_iter_simple() {
+        let chars = "hi".chars();
+        let mut advanced_iter = AdvancedIter::new(chars);
+        assert_eq!(advanced_iter.next(), Some('h'));
     }
 }
