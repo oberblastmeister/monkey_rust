@@ -6,8 +6,8 @@ edition = "2018"
 
 [workspace]
 members = [
-    "crates/lexer"
-    "crates/common"
+    "crates/lexer",
+    "crates/common",
 ]
 
 [[bin]]
