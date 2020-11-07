@@ -8,6 +8,7 @@ edition = "2018"
 members = [
     "crates/lexer",
     "crates/common",
+    "crates/parser",
 ]
 
 [[bin]]

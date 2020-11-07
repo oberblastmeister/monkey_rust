@@ -8,9 +8,10 @@ use std::str;
 use common::{Accept, Peekable};
 use log::debug;
 use log::info;
-use tokens::Token::{self, *};
 
 use advanced_chars::AdvancedChars;
+pub use tokens::Token;
+use Token::*;
 
 /// lexer struct, holds input str, chars iterator, and start position which is the memorized
 /// position in case the token is more than one char long
