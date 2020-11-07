@@ -5,6 +5,7 @@ use log::info;
 
 /// Advanced iter is and iterator that is advanced one. It is like Peekable<T> except the peek item
 /// is already advanced.
+#[derive(Debug, Clone)]
 pub struct AdvancedIter<T: Iterator> {
     iter: T,
     peek_item: Option<T::Item>,
