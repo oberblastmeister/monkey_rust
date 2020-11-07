@@ -4,17 +4,22 @@ mod tokens;
 mod advanced_chars;
 
 use std::str;
+use std::time::Duration;
+use std::sync::mpsc::{Sender, Receiver, channel, RecvTimeoutError, SendError};
 
-use common::{Accept, Peekable};
 use log::debug;
 use log::info;
 
+use common::Accept;
+pub use tokens::Token;
+use tokens::Token::*;
 use advanced_chars::AdvancedChars;
 pub use tokens::Token;
 use Token::*;
 
 /// lexer struct, holds input str, chars iterator, and start position which is the memorized
 /// position in case the token is more than one char long
+#[derive(Debug, Clone)]
 pub struct Lexer<'input> {
     input: &'input str,
     chars: AdvancedChars<'input>,
@@ -22,7 +27,7 @@ pub struct Lexer<'input> {
 }
 
 impl<'input> Lexer<'input> {
-    /// create a new lexer iterator from a string
+    /// crete a new lexer iterator from a string
     pub fn new(input: &str) -> Lexer<'_> {
         let chars = AdvancedChars::new(input);
         Lexer {
@@ -205,6 +210,61 @@ const fn is_digit(c: &char) -> bool {
 /// checks if the char is a unicode letter
 fn is_letter(c: &char) -> bool {
     c.is_alphabetic() || *c == '_'
+}
+
+pub struct LexerSender<'input> {
+    sender: Sender<Option<Token<'input>>>,
+    lexer: Lexer<'input>,
+}
+
+impl<'input> LexerSender<'input> {
+    fn new(input: &'input str, sender: Sender<Option<Token<'input>>>) -> LexerSender<'input> {
+        let lexer = Lexer::new(input);
+        LexerSender {
+            sender,
+            lexer,
+        }
+    }
+
+    /// Sends all the tokens and block
+    fn send(self) {
+        for token in self.lexer {
+            self.sender.send(Some(token)).expect("Failed to send token");
+        }
+        self.sender.send(None).expect("Failed to send no tokens");
+    }
+}
+
+pub struct LexerReceiver<'input> {
+    receiver: Receiver<Option<Token<'input>>>,
+    no_more: bool,
+}
+
+impl<'input> LexerReceiver<'input> {
+    fn new(receiver: Receiver<Option<Token<'input>>>) -> LexerReceiver<'input> {
+        LexerReceiver {
+            receiver,
+            no_more: false,
+        }
+    }
+}
+
+impl<'input> Iterator for LexerReceiver<'input> {
+    type Item = Result<Token<'input>, RecvTimeoutError>;
+
+    fn next(&mut self) -> Option<Result<Token<'input>, RecvTimeoutError>> {
+        if self.no_more {
+            return None;
+        }
+
+        match self.receiver.recv_timeout(Duration::from_secs(60)).transpose() {
+            Some(token) => Some(token),
+            None => {
+                self.no_more = true;
+                None
+            }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -4,6 +4,7 @@ mod ast;
 pub struct Parser {
 
 }
+
 #[cfg(test)]
 mod tests {
     #[test]

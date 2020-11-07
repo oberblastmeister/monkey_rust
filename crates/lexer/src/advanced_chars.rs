@@ -5,6 +5,7 @@ use common::{Peekable, AdvancedIter, Accept};
 use log::debug;
 
 /// Like Peekable<CharIndices> except the iterator is advanced on at the start.
+#[derive(Debug, Clone)]
 pub struct AdvancedChars<'a> {
     chars: AdvancedIter<CharIndices<'a>>,
     peek_ch: Option<char>,

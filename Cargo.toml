@@ -7,6 +7,7 @@ edition = "2018"
 [workspace]
 members = [
     "crates/lexer",
+    "crates/parser",
     "crates/common",
     "crates/parser",
 ]
