@@ -39,3 +39,45 @@ pub enum Token<'a> {
     Eq,
     NotEq,
 }
+
+impl<'a> Token<'a> {
+    pub fn as_str(&self) -> &str {
+        use Token::*;
+
+        match self {
+            Illegal => "ILLEGAL",
+
+            Ident(s) => s,
+            Number(s) => s,
+
+            Assign => "=",
+            Plus => "+",
+            Asterisk => "*",
+            Slash => "/",
+            Lt => "<",
+            Gt => ">",
+            LtEq => "<=",
+            GtEq => ">=",
+
+            Comma => ",",
+            Semicolon => ";",
+
+            Lparen => "(",
+            Rparen => ")",
+            Lbrace => "{",
+            Rbrace => "}",
+
+            // keywords
+            Function => "fn",
+            Let => "let",
+            True => "true",
+            False => "false",
+            If => "if",
+            Else => "else",
+            Return => "return",
+
+            Eq => "==",
+            NotEq => "!=",
+        }
+    }
+}
