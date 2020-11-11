@@ -10,9 +10,7 @@ use std::sync::mpsc::{Sender, Receiver, channel, RecvTimeoutError, SendError};
 use log::debug;
 use log::info;
 
-use common::Accept;
-pub use tokens::Token;
-use tokens::Token::*;
+use crate::common::{AdvancedIter, Accept, Peekable};
 use advanced_chars::AdvancedChars;
 pub use tokens::Token;
 use Token::*;
@@ -266,6 +264,52 @@ impl<'input> Iterator for LexerReceiver<'input> {
         }
     }
 }
+
+pub fn lexer_channel(input: &str) -> (LexerSender, LexerReceiver) {
+    let (sender, receiver) = channel();
+    let lexer_sender = LexerSender::new(input, sender);
+    let lexer_receiver = LexerReceiver::new(receiver);
+    (lexer_sender, lexer_receiver)
+}
+
+pub struct AdvancedLexer<'input> {
+    lexer: AdvancedIter<Lexer<'input>>,
+    curr_token: Option<Token<'input>>,
+}
+
+impl<'input> AdvancedLexer<'input> {
+    pub fn new(input: &str) -> AdvancedLexer<'_> {
+        let lexer = AdvancedIter::new(Lexer::new(input));
+        let curr_token = None;
+        AdvancedLexer {
+            lexer,
+            curr_token,
+        }
+    }
+
+    pub fn curr_token(&self) -> Option<Token<'input>> {
+        self.curr_token
+    }
+}
+
+impl<'input> Iterator for AdvancedLexer<'input> {
+    type Item = Token<'input>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let curr_token = self.lexer.next();
+        self.curr_token = curr_token;
+        curr_token
+    }
+}
+
+impl<'input> Peekable for AdvancedLexer<'input> {
+    fn peek(&self) -> Option<&Self::Item> {
+        self.lexer.peek()
+    }
+}
+
+// impl<T, 'input> Accept<T> for AdvancedLexer<'input> {  }
+
 
 #[cfg(test)]
 mod tests {

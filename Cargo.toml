@@ -6,10 +6,7 @@ edition = "2018"
 
 [workspace]
 members = [
-    "crates/lexer",
-    "crates/parser",
-    "crates/common",
-    "crates/parser",
+    "crates/monkey"
 ]
 
 [[bin]]
@@ -19,7 +16,6 @@ path = "crates/repl/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lexer = { path = "crates/lexer" }
 clap = "3.0.0-beta.2"
 rustyline = "6.3.0"
 crossbeam-utils = "0.7.2"

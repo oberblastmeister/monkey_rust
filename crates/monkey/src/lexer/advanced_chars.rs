@@ -1,6 +1,6 @@
 use std::str::CharIndices;
 use std::iter::FusedIterator;
-use common::{Peekable, AdvancedIter, Accept};
+use crate::common::{Peekable, AdvancedIter, Accept};
 
 use log::debug;
 
@@ -92,8 +92,6 @@ impl<T, U> OptionExt<T, U> for Option<(T, U)> {
 }
 
 impl<'a> FusedIterator for AdvancedChars<'a> {  }
-
-impl<'a> Accept<char> for AdvancedChars<'a> {  }
 
 #[cfg(test)]
 mod tests {

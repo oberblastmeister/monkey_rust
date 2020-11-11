@@ -71,21 +71,31 @@ impl<T: Iterator> Peekable for AdvancedIter<T> {
     }
 }
 
-impl<T: Iterator> FusedIterator for AdvancedIter<T> {  }
+impl<T: Iterator> FusedIterator for AdvancedIter<T> {}
 
 pub trait Accept<T: PartialEq + fmt::Debug>: Iterator<Item = T> + Peekable {
-
     fn accept(&mut self, valid: Self::Item) -> bool {
         match self.peek() {
             Some(c) if c == &valid => {
                 info!("char `{:?}` is accepted", c);
                 self.next();
                 true
-            },
+            }
             _ => {
                 info!("char `{:?}` is not accepted", self.peek());
                 false
-            },
+            }
+        }
+    }
+
+    fn accept_or<E>(&mut self, valid: Self::Item, err: E) -> Result<(), E>
+    where
+        E: std::error::Error,
+    {
+        if self.accept(valid) {
+            Ok(())
+        } else {
+            Err(err)
         }
     }
 
@@ -102,6 +112,13 @@ pub trait Accept<T: PartialEq + fmt::Debug>: Iterator<Item = T> + Peekable {
             }
         }
     }
+}
+
+impl<T, U> Accept<U> for T
+where
+    T: Iterator<Item = U> + Peekable,
+    U: PartialEq + fmt::Debug,
+{
 }
 
 #[cfg(test)]
