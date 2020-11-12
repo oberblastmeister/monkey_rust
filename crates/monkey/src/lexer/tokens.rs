@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Token<'a> {
     Illegal,
@@ -79,5 +81,11 @@ impl<'a> Token<'a> {
             Eq => "==",
             NotEq => "!=",
         }
+    }
+}
+
+impl<'a> fmt::Display for Token<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }

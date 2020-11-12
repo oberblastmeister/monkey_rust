@@ -4,6 +4,8 @@ use std::str::ParseBoolError;
 use crate::lexer::Token;
 use thiserror::Error;
 
+pub type ParseResult<T> = Result<T, ParseError>;
+
 #[derive(Error, Debug)]
 pub enum ParseError {
     #[error("{0}")]
@@ -25,4 +27,17 @@ pub enum ParseError {
 
     #[error("Unexpected Eof")]
     UnexpectedEof,
+
+    #[error("No semicolon after statement was found")]
+    NoSemicolon,
+
+    #[error("Bad prefix operator `{op}`")]
+    BadPrefixOperator {
+        op: String,
+    },
+
+    #[error("Bad postfix operator `{op}`")]
+    BadPostfixOperator {
+        op: String
+    }
 }

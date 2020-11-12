@@ -5,7 +5,7 @@ mod parser;
 
 pub use parse::Parse;
 pub use parser::Parser;
-pub use parse_error::ParseError;
+pub use parse_error::{ParseResult, ParseError};
 
 #[cfg(test)]
 mod tests {
