@@ -1,9 +1,7 @@
 mod ast;
 mod parse_error;
-mod parse;
 mod parser;
 
-pub use parse::Parse;
 pub use parser::Parser;
 pub use parse_error::{ParseResult, ParseError};
 

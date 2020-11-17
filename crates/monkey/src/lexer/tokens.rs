@@ -54,6 +54,8 @@ impl<'a> Token<'a> {
 
             Assign => "=",
             Plus => "+",
+            Minus => "-",
+            Bang => "!",
             Asterisk => "*",
             Slash => "/",
             Lt => "<",

@@ -6,7 +6,7 @@ use thiserror::Error;
 
 pub type ParseResult<T> = Result<T, ParseError>;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, PartialEq)]
 pub enum ParseError {
     #[error("{0}")]
     Custom(&'static str),

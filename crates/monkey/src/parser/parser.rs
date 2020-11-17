@@ -1,5 +1,7 @@
+use log::debug;
+use log::info;
+
 use super::ast;
-use super::Parse;
 use super::{ParseError, ParseResult};
 use crate::common::{Accept, Peekable};
 use crate::lexer::AdvancedLexer;
@@ -22,18 +24,11 @@ impl<'input> Parser<'input> {
     }
 
     pub fn expect_or(&mut self, expected: Token<'_>, err: ParseError) -> ParseResult<()> {
-        if *self.lexer().peek().ok_or(err)? == expected {
+        if *self.lexer().peek().ok_or(err.clone())? == expected {
             Err(err)
         } else {
             Ok(())
         }
-    }
-
-    pub fn parse<T>(&mut self) -> Result<T, ParseError>
-    where
-        T: Parse,
-    {
-        T::parse(self)
     }
 
     pub fn next_or_err(&mut self) -> Result<Token<'input>, ParseError> {
@@ -58,9 +53,18 @@ impl<'input> Parser<'input> {
 
     fn parse_statement(&mut self) -> ParseResult<ast::Statement<'input>> {
         let stmt = match self.curr_token_or_err()? {
-            Let => ast::Statement::Let(self.parse_let_statement()?),
-            Return => ast::Statement::Return(self.parse_return_statement()?),
-            _ => ast::Statement::Expression(self.parse_expression_statement()?),
+            Let => {
+                info!("Parsing let statement");
+                ast::Statement::Let(self.parse_let_statement()?)
+            }
+            Return => {
+                info!("Parsing return statement");
+                ast::Statement::Return(self.parse_return_statement()?)
+            }
+            _ => {
+                info!("Parsing expression statement");
+                ast::Statement::Expression(self.parse_expression_statement()?)
+            }
         };
         self.lexer
             .accept_or(Token::Semicolon, ParseError::NoSemicolon)?;
@@ -75,10 +79,7 @@ impl<'input> Parser<'input> {
 
     fn parse_return_statement(&mut self) -> ParseResult<ast::ReturnStmt<'input>> {
         let value = self.parse_expression(LOWEST)?;
-        Ok(ast::ReturnStmt {
-            token: Token::Return,
-            value,
-        })
+        Ok(ast::ReturnStmt { value })
     }
 
     fn parse_expression_statement(&mut self) -> ParseResult<ast::ExpressionStmt<'input>> {
@@ -87,7 +88,7 @@ impl<'input> Parser<'input> {
     }
 
     fn parse_litnum(&mut self) -> ParseResult<ast::LitNum> {
-        let token = self.lexer().next().ok_or(ParseError::UnexpectedEof)?;
+        let token = self.curr_token_or_err()?;
         let token = token.as_str();
         let num = token.parse::<u64>().map_err(|e| ParseError::IntLit {
             int: token.to_string(),
@@ -97,7 +98,7 @@ impl<'input> Parser<'input> {
     }
 
     fn parse_litbool(&mut self) -> ParseResult<ast::LitBool> {
-        let token = self.lexer().next().ok_or(ParseError::UnexpectedEof)?;
+        let token = self.curr_token_or_err()?;
         let token = token.as_str();
         let bool = token.parse::<bool>().map_err(|e| ParseError::BoolLit {
             bool: token.to_string(),
@@ -106,31 +107,38 @@ impl<'input> Parser<'input> {
         Ok(ast::LitBool(bool))
     }
 
+    fn peek_semicolon(&mut self) -> bool {
+        match self.lexer.peek() {
+            Some(op) if *op == Semicolon => true,
+            _ => false
+        }
+    }
     fn parse_expression(&mut self, min_bp: u8) -> ParseResult<ast::Expression<'input>> {
         let token = self.curr_token_or_err()?;
-        let lhs = match token {
-            Token::Number(_) => ast::Expression::LitNum(self.parse_litnum()?),
-            Token::True | Token::False => ast::Expression::LitBool(self.parse_litbool()?),
-            _ => {
-                let ((), r_bp) = prefix_binding_power(token)?;
-                let rhs = self.parse_expression(r_bp)?;
-                ast::Expression::Prefix(Box::new(ast::PrefixExpression { prefix: token, rhs }))
-            }
-        };
+        debug!("Token: {:?}", token);
+        let mut lhs = self.parse_lhs()?;
 
         loop {
             let op = match self.lexer.peek() {
+                Some(op) if *op == Semicolon => break,
                 Some(op) => op,
                 None => return Ok(lhs),
             };
 
             if let Some((l_bp, r_bp)) = infix_binding_power(*op) {
                 if l_bp < min_bp {
+                    info!("l_bp: {} was less than min_bp: {}", l_bp, min_bp);
                     break;
                 }
+                info!("l_bp: {} was not less than min_bp: {}", l_bp, min_bp);
+                info!("Parsing infix expression");
                 let token = self.lexer.next().unwrap();
                 let rhs = self.parse_expression(r_bp)?;
-                lhs = ast::Expression::Infix(Box::new(ast::InfixExpression { lhs, operator: token, rhs }));
+                lhs = ast::Expression::Infix(Box::new(ast::InfixExpression {
+                    lhs,
+                    operator: token,
+                    rhs,
+                }));
                 continue;
             };
             break;
@@ -139,13 +147,42 @@ impl<'input> Parser<'input> {
         Ok(lhs)
     }
 
+    fn parse_lhs(&mut self) -> ParseResult<ast::Expression<'input>> {
+        let curr_token = self.curr_token_or_err()?;
+        let lhs = match curr_token {
+            Token::Number(_) => {
+                info!("Parsing litnum");
+                ast::Expression::LitNum(self.parse_litnum()?)
+            }
+            Token::True | Token::False => {
+                info!("Parsing litbool");
+                ast::Expression::LitBool(self.parse_litbool()?)
+            }
+            _ => ast::Expression::Prefix(Box::new(self.parse_prefix_expression()?)),
+        };
+        Ok(lhs)
+    }
+
     fn parse_prefix_expression(&mut self) -> ParseResult<ast::PrefixExpression<'input>> {
-        todo!()
+        let curr_token = self.curr_token_or_err()?;
+        info!("Parsing prefix expression");
+        let ((), r_bp) = prefix_binding_power(curr_token)?;
+        let rhs = self.parse_expression(r_bp)?;
+        let prefix_expr = ast::PrefixExpression {
+            prefix: curr_token,
+            rhs,
+        };
+        Ok(prefix_expr)
     }
 
     fn parse_infix_expression(&mut self) -> ParseResult<ast::InfixExpression<'input>> {
         todo!()
     }
+}
+
+pub fn parse_program(input: &str) -> ParseResult<ast::Program<'_>> {
+    let mut parser = Parser::new(input);
+    Ok(parser.parse_program()?)
 }
 
 fn prefix_binding_power(op: Token<'_>) -> ParseResult<((), u8)> {
@@ -163,4 +200,16 @@ fn infix_binding_power(op: Token<'_>) -> Option<(u8, u8)> {
         _ => return None,
     };
     Some(op)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn simple_test() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let program = parse_program("1 + 2 * 3;").unwrap();
+        assert_eq!(program.to_string(), "(1 + (2 * 3));");
+    }
 }
