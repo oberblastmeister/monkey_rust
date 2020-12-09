@@ -39,5 +39,10 @@ pub enum ParseError {
     #[error("Bad postfix operator `{op}`")]
     BadPostfixOperator {
         op: String
+    },
+
+    #[error("Expected semicolon, got `{got}`")]
+    ExpectedSemicolon {
+        got: String,
     }
 }

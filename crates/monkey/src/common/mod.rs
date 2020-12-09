@@ -78,7 +78,6 @@ pub trait Accept<T: PartialEq + fmt::Debug>: Iterator<Item = T> + Peekable {
         match self.peek() {
             Some(c) if c == &valid => {
                 info!("char `{:?}` is accepted", c);
-                self.next();
                 true
             }
             _ => {
@@ -88,16 +87,29 @@ pub trait Accept<T: PartialEq + fmt::Debug>: Iterator<Item = T> + Peekable {
         }
     }
 
-    fn accept_or<E>(&mut self, valid: Self::Item, err: E) -> Result<(), E>
-    where
-        E: std::error::Error,
-    {
-        if self.accept(valid) {
-            Ok(())
-        } else {
-            Err(err)
+    fn accept_return(&mut self, valid: Self::Item) -> Result<Self::Item, Option<&Self::Item>> {
+        match self.peek() {
+            Some(c) if c == &valid => {
+                info!("char `{:?}` is accepted", c);
+                Ok(self.next().expect("BUG: should have some after peek"))
+            }
+            item => {
+                info!("char `{:?}` is not accepted", self.peek());
+                Err(item)
+            }
         }
     }
+
+    // fn accept_or<E>(&mut self, valid: Self::Item, err: E) -> Result<(), E>
+    // where
+    //     E: std::error::Error,
+    // {
+    //     if self.accept(valid) {
+    //         Ok(())
+    //     } else {
+    //         Err(err)
+    //     }
+    // }
 
     /// Accepts while predicate returns true. Does not accept the char the predicate returns
     /// false for.

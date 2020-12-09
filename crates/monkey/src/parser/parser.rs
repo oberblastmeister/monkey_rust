@@ -9,6 +9,27 @@ use crate::lexer::Token::{self, *};
 
 const LOWEST: u8 = 0;
 
+// #[macro_export]
+// macro_rules! expect {
+//     ($parser:expr, $token:expr) => {
+//         {
+//             let parser = $parser;
+//             let token = $token;
+//             let res = parser.lexer().accept_return(token);
+//             match res {
+//                 Ok(token) => Ok(token),
+//                 Err(op_token) => {
+//                     if let Some(token) = op_token {
+//                         ParseError::Expected$token { got: String::from(token) }
+//                     } else {
+//                         ParseError::UnexpectedEof
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
+
 pub struct Parser<'input> {
     pub lexer: AdvancedLexer<'input>,
 }
@@ -55,15 +76,15 @@ impl<'input> Parser<'input> {
         let stmt = match self.curr_token_or_err()? {
             Let => {
                 info!("Parsing let statement");
-                ast::Statement::Let(self.parse_let_statement()?)
+                self.parse_let_statement()?
             }
             Return => {
                 info!("Parsing return statement");
-                ast::Statement::Return(self.parse_return_statement()?)
+                self.parse_return_statement()?
             }
             _ => {
                 info!("Parsing expression statement");
-                ast::Statement::Expression(self.parse_expression_statement()?)
+                self.parse_expression_statement()?
             }
         };
         self.lexer
@@ -71,40 +92,45 @@ impl<'input> Parser<'input> {
         Ok(stmt)
     }
 
-    fn parse_let_statement(&mut self) -> ParseResult<ast::LetStmt<'input>> {
-        let name = self.next_or_err()?;
+    fn parse_let_statement(&mut self) -> ParseResult<ast::Statement<'input>> {
+        // curr token let
+        let ident = self.next_or_err()?;
         let value = self.parse_expression(LOWEST)?;
-        Ok(ast::LetStmt { name, value })
+        Ok(ast::Statement::Let { ident, value })
     }
 
-    fn parse_return_statement(&mut self) -> ParseResult<ast::ReturnStmt<'input>> {
-        let value = self.parse_expression(LOWEST)?;
-        Ok(ast::ReturnStmt { value })
+    fn parse_return_statement(&mut self) -> ParseResult<ast::Statement<'input>> {
+        // curr token return
+        let expr = self.parse_expression(LOWEST)?;
+        self.lexer().accept_return(Semicolon).map_err(|op_token| ParseError::ExpectedSemicolon { got: String::from(op_token.as_str()) })?;
+        self.lexer().accept_or(Semicolon, ParseError::NoSemicolon);
+        Ok(ast::Statement::Return(expr))
     }
 
-    fn parse_expression_statement(&mut self) -> ParseResult<ast::ExpressionStmt<'input>> {
+    fn parse_expression_statement(&mut self) -> ParseResult<ast::Statement<'input>> {
         let expression = self.parse_expression(LOWEST)?;
-        Ok(ast::ExpressionStmt(expression))
+        self.lexer().accept_or(Semicolon, ParseError::NoSemicolon)?;
+        Ok(ast::Statement::Expression(expression))
     }
 
-    fn parse_litnum(&mut self) -> ParseResult<ast::LitNum> {
+    fn parse_litnum(&mut self) -> ParseResult<ast::Expression<'input>> {
         let token = self.curr_token_or_err()?;
         let token = token.as_str();
-        let num = token.parse::<u64>().map_err(|e| ParseError::IntLit {
+        let num = token.parse().map_err(|e| ParseError::IntLit {
             int: token.to_string(),
             source: e,
         })?;
-        Ok((ast::LitNum(num)))
+        Ok(ast::Expression::NumberLiteral(num))
     }
 
-    fn parse_litbool(&mut self) -> ParseResult<ast::LitBool> {
+    fn parse_litbool(&mut self) -> ParseResult<ast::Expression<'input>> {
         let token = self.curr_token_or_err()?;
         let token = token.as_str();
         let bool = token.parse::<bool>().map_err(|e| ParseError::BoolLit {
             bool: token.to_string(),
             source: e,
         })?;
-        Ok(ast::LitBool(bool))
+        Ok(ast::Expression::BooleanLiteral(bool))
     }
 
     fn peek_semicolon(&mut self) -> bool {
