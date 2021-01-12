@@ -51,23 +51,23 @@ impl<'input> Lexer<'input> {
         // chars long, a new state function is called that will determine the token
         let res = match c {
             '=' => self.assign_or_eq(),
-            ';' => token(Semicolon),
-            '(' => token(Lparen),
-            ')' => token(Rparen),
-            ',' => token(Comma),
-            '+' => token(Plus),
-            '*' => token(Asterisk),
+            ';' => Some(Semicolon),
+            '(' => Some(Lparen),
+            ')' => Some(Rparen),
+            ',' => Some(Comma),
+            '+' => Some(Plus),
+            '*' => Some(Asterisk),
             '/' => self.slash_or_comment(),
-            '-' => token(Minus),
-            '{' => token(Lbrace),
-            '}' => token(Rbrace),
+            '-' => Some(Minus),
+            '{' => Some(Lbrace),
+            '}' => Some(Rbrace),
             '>' => self.gt(),
             '<' => self.lt(),
             '!' => self.bang_or_not_eq(),
             _ if is_start_of_number(&c) => self.number(),
             _ if is_letter(&c) => self.keyword(),
             _ if is_whitespace(&c) => self.whitespace(),
-            _ => token(Illegal),
+            _ => Some(Illegal),
         };
         debug!("res: {:?}", res);
         self.ignore();
@@ -83,16 +83,14 @@ impl<'input> Lexer<'input> {
         if self.chars.accept('/') {
             self.comment()
         } else {
-            token(Slash)
+            Some(Slash)
         }
     }
 
     fn comment(&mut self) -> Option<Token<'input>> {
         info!("In comment state");
-        if let None = self.chars.find(is_linebreak) {
-            if self.input.lines().count() != 1 {
-                panic!("Could not find char that matched function is_linebreak");
-            }
+        if self.chars.find(is_linebreak).is_none() && self.input.lines().count() != 1 {
+            panic!("Could not find char that matched function is_linebreak");
         };
         self.ignore();
         self.lex_main()
@@ -100,33 +98,33 @@ impl<'input> Lexer<'input> {
 
     fn assign_or_eq(&mut self) -> Option<Token<'input>> {
         if self.chars.accept('=') {
-            token(Eq)
+            Some(Eq)
         } else {
-            token(Assign)
+            Some(Assign)
         }
     }
 
     fn gt(&mut self) -> Option<Token<'input>> {
         if self.chars.accept('=') {
-            token(GtEq)
+            Some(GtEq)
         } else {
-            token(Gt)
+            Some(Gt)
         }
     }
 
     fn bang_or_not_eq(&mut self) -> Option<Token<'input>> {
         if self.chars.accept('=') {
-            token(NotEq)
+            Some(NotEq)
         } else {
-            token(Bang)
+            Some(Bang)
         }
     }
 
     fn lt(&mut self) -> Option<Token<'input>> {
         if self.chars.accept('=') {
-            token(LtEq)
+            Some(LtEq)
         } else {
-            token(Lt)
+            Some(Lt)
         }
     }
 
@@ -137,27 +135,27 @@ impl<'input> Lexer<'input> {
             self.chars.accept_while(is_digit);
         }
 
-        token(Number(self.current_slice()))
+        Some(Number(self.current_slice()))
     }
 
     fn keyword(&mut self) -> Option<Token<'input>> {
         info!("in keyword state");
         self.chars.accept_while(is_letter);
         match self.current_slice() {
-            "fn" => token(Function),
-            "return" => token(Return),
-            "let" => token(Let),
-            "if" => token(If),
-            "else" => token(Else),
-            "true" => token(True),
-            "false" => token(False),
+            "fn" => Some(Function),
+            "return" => Some(Return),
+            "let" => Some(Let),
+            "if" => Some(If),
+            "else" => Some(Else),
+            "true" => Some(True),
+            "false" => Some(False),
             _ => self.ident(),
         }
     }
 
     fn ident(&mut self) -> Option<Token<'input>> {
         info!("in ident state");
-        token(Ident(self.current_slice()))
+        Some(Ident(self.current_slice()))
     }
 
     fn current_slice(&mut self) -> &'input str {
@@ -180,10 +178,6 @@ impl<'input> Iterator for Lexer<'input> {
         res
     }
 } 
-
-fn token(token: Token) -> Option<Token> {
-    Some(token)
-}
 
 // const fn is_linebreak(c: char) -> bool {
 //     c == '\n'

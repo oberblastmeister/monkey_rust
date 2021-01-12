@@ -75,9 +75,11 @@ impl<T: Iterator> FusedIterator for AdvancedIter<T> {}
 
 pub trait Accept<T: PartialEq + fmt::Debug>: Iterator<Item = T> + Peekable {
     fn accept(&mut self, valid: Self::Item) -> bool {
-        match self.peek() {
+        let peeked = self.peek();
+        match peeked {
             Some(c) if c == &valid => {
                 info!("char `{:?}` is accepted", c);
+                self.next(); // consume the token
                 true
             }
             _ => {
@@ -88,9 +90,11 @@ pub trait Accept<T: PartialEq + fmt::Debug>: Iterator<Item = T> + Peekable {
     }
 
     // fn accept_return(&mut self, valid: Self::Item) -> Result<Self::Item, Option<&Self::Item>> {
-    //     match self.peek() {
+    //     let peeked = self.peek();
+    //     match peeked {
     //         Some(c) if c == &valid => {
     //             info!("char `{:?}` is accepted", c);
+    //             let next = self.next();
     //             Ok(self.next().expect("BUG: should have some after peek"))
     //         }
     //         item => {

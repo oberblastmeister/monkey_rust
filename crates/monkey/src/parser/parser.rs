@@ -1,3 +1,4 @@
+use crate::ast;
 use super::{ParseError, ParseResult, Parse};
 use crate::common::{Accept, Peekable};
 use crate::lexer::AdvancedLexer;
@@ -6,6 +7,10 @@ use crate::lexer::Token::{self, *};
 pub struct Parser<'input> {
     pub lexer: AdvancedLexer<'input>,
     pub errors: Vec<ParseError>,
+}
+
+pub fn parse(s: &str) -> ParseResult<ast::Program<'_>> {
+    Parser::new(s).parse()
 }
 
 impl<'input> Parser<'input> {
@@ -36,5 +41,17 @@ impl<'input> Parser<'input> {
 
     pub fn parse<T: Parse>(&mut self) -> ParseResult<T> {
         T::parse(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_number() {
+        let s = "1234";
+        let program = parse(s).unwrap();
+        assert_eq!(program.to_string(), "1234;")
     }
 }

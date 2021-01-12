@@ -1,6 +1,6 @@
-use std::str::CharIndices;
+use crate::common::{Accept, AdvancedIter, Peekable};
 use std::iter::FusedIterator;
-use crate::common::{Peekable, AdvancedIter, Accept};
+use std::str::CharIndices;
 
 use log::debug;
 
@@ -21,7 +21,7 @@ impl<'a> AdvancedChars<'a> {
         let chars = AdvancedIter::new(input.char_indices());
         let (peek_pos, peek_ch) = match chars.peek_item() {
             Some((idx, ch)) => (Some(*idx), Some(*ch)),
-            None => (None, None)
+            None => (None, None),
         };
         let current_pos = None;
         let current_ch = None;
@@ -72,7 +72,7 @@ impl<'a> Iterator for AdvancedChars<'a> {
         let (current_pos, current_ch) = self.chars.next().unzip();
         self.current_pos = current_pos;
         self.current_ch = current_ch;
-        let (peek_pos, peek_ch) = self.chars.peek().map(|i| *i).unzip();
+        let (peek_pos, peek_ch) = self.chars.peek().map(Clone::clone).unzip();
         self.peek_pos = peek_pos;
         self.peek_ch = peek_ch;
         current_ch
@@ -85,13 +85,11 @@ trait OptionExt<T, U> {
 
 impl<T, U> OptionExt<T, U> for Option<(T, U)> {
     fn unzip(self) -> (Option<T>, Option<U>) {
-        self.map_or((None, None), |(t, u)| {
-            (Some(t), Some(u))
-        })
+        self.map_or((None, None), |(t, u)| (Some(t), Some(u)))
     }
 }
 
-impl<'a> FusedIterator for AdvancedChars<'a> {  }
+impl<'a> FusedIterator for AdvancedChars<'a> {}
 
 #[cfg(test)]
 mod tests {
