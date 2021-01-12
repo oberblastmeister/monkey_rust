@@ -1,31 +1,17 @@
-use std::num::ParseIntError;
-use std::str::ParseBoolError;
-
 use crate::lexer::Token;
 use thiserror::Error;
 
-pub type ParseResult<T> = Result<T, ParseError>;
+pub type ParseResult<T, E = ParseError> = Result<T, E>;
 
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum ParseError {
     #[error("{0}")]
     Custom(&'static str),
 
-    #[error("Failed to parse token {int} into an integer: {source}")]
-    IntLit {
-        int: String,
-        #[source]
-        source: ParseIntError,
-    },
+    #[error("Bad number")]
+    BadNumber,
 
-    #[error("Failed to parse token {bool} into a bool: {source}")]
-    BoolLit {
-        bool: String,
-        #[source]
-        source: ParseBoolError,
-    },
-
-    #[error("Unexpected Eof")]
+    #[error("Unexpected end of file")]
     UnexpectedEof,
 
     #[error("No semicolon after statement was found")]
@@ -44,5 +30,11 @@ pub enum ParseError {
     #[error("Expected semicolon, got `{got}`")]
     ExpectedSemicolon {
         got: String,
+    },
+
+    #[error("Expected token `{token}`, go token `{got}`")]
+    Expected {
+        token: &'static str,
+        got: &'static str,
     }
 }

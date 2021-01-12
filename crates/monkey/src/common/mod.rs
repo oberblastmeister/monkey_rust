@@ -87,18 +87,18 @@ pub trait Accept<T: PartialEq + fmt::Debug>: Iterator<Item = T> + Peekable {
         }
     }
 
-    fn accept_return(&mut self, valid: Self::Item) -> Result<Self::Item, Option<&Self::Item>> {
-        match self.peek() {
-            Some(c) if c == &valid => {
-                info!("char `{:?}` is accepted", c);
-                Ok(self.next().expect("BUG: should have some after peek"))
-            }
-            item => {
-                info!("char `{:?}` is not accepted", self.peek());
-                Err(item)
-            }
-        }
-    }
+    // fn accept_return(&mut self, valid: Self::Item) -> Result<Self::Item, Option<&Self::Item>> {
+    //     match self.peek() {
+    //         Some(c) if c == &valid => {
+    //             info!("char `{:?}` is accepted", c);
+    //             Ok(self.next().expect("BUG: should have some after peek"))
+    //         }
+    //         item => {
+    //             info!("char `{:?}` is not accepted", self.peek());
+    //             Err(item)
+    //         }
+    //     }
+    // }
 
     // fn accept_or<E>(&mut self, valid: Self::Item, err: E) -> Result<(), E>
     // where

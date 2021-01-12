@@ -5,7 +5,7 @@ mod advanced_chars;
 
 use std::str;
 use std::time::Duration;
-use std::sync::mpsc::{Sender, Receiver, channel, RecvTimeoutError, SendError};
+use std::sync::mpsc::{Sender, Receiver, channel, RecvTimeoutError};
 
 use log::debug;
 use log::info;

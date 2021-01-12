@@ -46,11 +46,25 @@ impl<'a> Token<'a> {
     pub fn as_str(&self) -> &str {
         use Token::*;
 
-        match self {
-            Illegal => "ILLEGAL",
+        match self._as_static_str() {
+            Ok(s) => s,
+            Err(token) => match token {
+                Ident(s) => s,
+                Number(s) => s,
+                _ => unreachable!(),
+            }
+        }
+    }
 
-            Ident(s) => s,
-            Number(s) => s,
+    /// # panics
+    /// will panic if the token cannot be turned into a static string
+    pub fn as_static_str(&self) -> &'static str {
+        self._as_static_str().unwrap()
+    }
+
+    pub fn _as_static_str(&self) -> Result<&'static str, Token<'_>> {
+        let s = match self {
+            Illegal => "ILLEGAL",
 
             Assign => "=",
             Plus => "+",
@@ -82,7 +96,10 @@ impl<'a> Token<'a> {
 
             Eq => "==",
             NotEq => "!=",
-        }
+
+            _ => return Err(*self),
+        };
+        Ok(s)
     }
 }
 

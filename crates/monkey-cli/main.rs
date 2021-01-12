@@ -4,7 +4,8 @@ use std::sync::mpsc::channel;
 
 use clap::Clap;
 use crossbeam_utils::thread;
-use lexer::Lexer;
+use monkey::lexer::Lexer;
+// use lexer::Lexer;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 

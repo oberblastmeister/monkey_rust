@@ -6,12 +6,13 @@ edition = "2018"
 
 [workspace]
 members = [
-    "crates/monkey"
+    "crates/monkey",
+    "crates/monkey-macros",
 ]
 
 [[bin]]
 name = "monkey"
-path = "crates/repl/main.rs"
+path = "crates/monkey-cli/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -21,3 +22,4 @@ rustyline = "6.3.0"
 crossbeam-utils = "0.7.2"
 env_logger = "0.7.1"
 log = "0.4.11"
+monkey = { path = "crates/monkey" }
