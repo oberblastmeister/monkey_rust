@@ -302,9 +302,6 @@ impl<'input> Peekable for AdvancedLexer<'input> {
     }
 }
 
-// impl<T, 'input> Accept<T> for AdvancedLexer<'input> {  }
-
-
 #[cfg(test)]
 mod tests {
     use super::*;

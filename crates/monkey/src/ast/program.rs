@@ -1,6 +1,9 @@
 use std::fmt;
 
-use crate::{common::Peekable, parser::{Parse, ParseResult, Parser}};
+use crate::{
+    common::Peekable,
+    parser::{Parse, ParseResult, Parser},
+};
 
 use super::stmt::Statement;
 
@@ -17,12 +20,15 @@ impl<'a> Program<'a> {
 
 impl<'a> fmt::Display for Program<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut s = String::new();
-        for statement in &self.statements {
-            s.push_str(&statement.to_string());
-            s.push('\n');
-        }
-        write!(f, "{}", s)
+        write!(
+            f,
+            "{}",
+            self.statements
+                .iter()
+                .map(|stmt| stmt.to_string())
+                .collect::<Vec<String>>()
+                .join("\n")
+        )
     }
 }
 
@@ -34,9 +40,7 @@ impl Parse for Program<'_> {
             if p.lexer().peek().is_none() {
                 return Ok(program);
             }
-
-            let stmt: Statement = p.parse()?;
-            program.push(stmt);
+            program.push(p.parse()?);
         }
     }
 }

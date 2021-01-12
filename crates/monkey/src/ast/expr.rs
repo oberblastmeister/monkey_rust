@@ -33,11 +33,14 @@ impl<'a> fmt::Display for Expression<'a> {
 
 impl Parse for Expression<'_> {
     fn parse(p: &mut Parser) -> ParseResult<Self> {
-        Ok(match p.next_or_err()? {
+        let next = p.next_or_err()?;
+        println!("Next: {:?}", next);
+
+        Ok(match next {
             Token::Number(n) => Expression::NumberLiteral(n.parse::<i64>().map_err(|e| ParseError::BadNumber)?),
             Token::True => Expression::BooleanLiteral(true),
             Token::False => Expression::BooleanLiteral(false),
-            _ => todo!(),
+            _ => panic!(),
         })
     }
 }

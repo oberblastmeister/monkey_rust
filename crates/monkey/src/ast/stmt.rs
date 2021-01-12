@@ -27,7 +27,7 @@ impl<'a> fmt::Display for Statement<'a> {
 
 impl Parse for Statement<'_> {
     fn parse(p: &mut Parser) -> ParseResult<Self> {
-        let res = match p.next_or_err()? {
+        let res = match p.peek_or_err()? {
             Token::Let => {
                 panic!()
             }
@@ -36,6 +36,7 @@ impl Parse for Statement<'_> {
             }
             _ => Statement::Expression(p.parse()?),
         };
+        p.expect(Token::Semicolon)?;
         Ok(res)
     }
 }

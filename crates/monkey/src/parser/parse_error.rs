@@ -32,7 +32,7 @@ pub enum ParseError {
         got: String,
     },
 
-    #[error("Expected token `{token}`, go token `{got}`")]
+    #[error("Expected token `{token}`, got token `{got}`")]
     Expected {
         token: &'static str,
         got: &'static str,
